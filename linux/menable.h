@@ -151,13 +151,13 @@ enum men_dma_chan_state {
 struct menable_dmachan {
     struct device dev;
     struct siso_menable *parent;
-    
+
     spinlock_t chanlock;            /* lock to protect administrative changes */
     struct menable_dmahead *active; /* active dma_head */
     unsigned char number;           /* number of DMA channel on device */
     unsigned char fpga;             /* FPGA index this channel belongs to */
     unsigned int mode:6;            /* streaming or controlled */
-    unsigned int direction:2;       /* PCI_DMA_{TO,FROM]DEVICE */
+    unsigned int direction:2;       /* DMA_{TO,FROM]_DEVICE */
     unsigned int state:2;           /* 0: stopped, 1: active, 2: finished, 3: in shutdown */
     unsigned int ackbit:5;          /* bit in irqack */
     unsigned int enablebit:5;       /* bit in irqenable */

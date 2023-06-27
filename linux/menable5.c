@@ -17,7 +17,6 @@
 #include <linux/slab.h>
 #include <linux/uaccess.h>
 #include <linux/sched.h>
-#include <stdbool.h>
 #include "menable5.h"
 #include "menable4.h"
 #include "menable_ioctl.h"
@@ -312,7 +311,7 @@ me5_device_reconnected(struct siso_menable* men)
 
 	men->config = men->register_interface.read(&men->register_interface, ME5_CONFIG);
 	men->config_ex = men->register_interface.read(&men->register_interface, ME5_CONFIG_EX);
-	
+
     spin_lock_irqsave(&men->boardlock, flags);
     {
         /* Unflag releasing */
@@ -925,7 +924,7 @@ me5_abortdma(struct siso_menable *men, struct menable_dmachan *dc)
         dmastat = men->register_interface.read(&men->register_interface, dc->iobase + ME5_DMACTRL);
         if ((dmastat & 4) != 0) break;
     }
-        
+
     /* Get DMA engine out of reset and wait for Abort bit to go low */
     men->register_interface.write(&men->register_interface, dc->iobase + ME5_DMACTRL, 0);
     for (retries = 0; retries < 100; ++retries) {
@@ -945,7 +944,7 @@ me5_stopdma(struct siso_menable *men, struct menable_dmachan *dc)
         /* Disable the DMA engine */
         men->register_interface.write(&men->register_interface, dc->iobase + ME5_DMACTRL, 0);
         dmastat = men->register_interface.read(&men->register_interface, dc->iobase + ME5_DMACTRL);
-        
+
         /* Disable DMA interrupt */
         irqreg = men->register_interface.read(&men->register_interface, dc->irqenable);
         irqreg &= ~(1 << dc->enablebit);
@@ -965,7 +964,7 @@ me5_stopdma(struct siso_menable *men, struct menable_dmachan *dc)
             dmastat = men->register_interface.read(&men->register_interface, dc->iobase + ME5_DMACTRL);
             if ((dmastat & 4) != 0) break;
         }
-        
+
         /* Get DMA engine out of reset and wait for Abort bit to go low */
         men->register_interface.write(&men->register_interface, dc->iobase + ME5_DMACTRL, 0);
         for (retries = 0; retries < 100; ++retries) {
@@ -1093,7 +1092,7 @@ me5_startdma(struct siso_menable *men, struct menable_dmachan *dc)
 
     me5_abortdma(men, dc);
 
-    dir = (dc->direction == PCI_DMA_TODEVICE) ? 2 : 1;
+    dir = (dc->direction == DMA_TO_DEVICE) ? 2 : 1;
 
     tmp = men->register_interface.read(&men->register_interface, dc->iobase + ME5_DMATYPE);
     if (!(tmp & dir)) {
@@ -1223,7 +1222,7 @@ me5_exit(struct siso_menable *men)
     men->d5->cleanup_peripherals(men->d5);
 
     dmam_pool_destroy(men->sgl_dma_pool);
-    pci_free_consistent(men->pdev, PCI_PAGE_SIZE, men->d5->dummypage, men->d5->dummypage_dma);
+    dma_free_coherent(&men->pdev->dev, PCI_PAGE_SIZE, men->d5->dummypage, men->d5->dummypage_dma);
     kfree(men->uiqs);
     kfree(men->d5);
 }
@@ -1397,11 +1396,11 @@ me5_probe(struct siso_menable *men)
     spin_lock_init(&men->d5->notification_data_lock);
     spin_lock_init(&men->d5->notification_handler_headlock);
 
-    if (pci_set_dma_mask(men->pdev, DMA_BIT_MASK(64))) {
+    if (dma_set_mask(&men->pdev->dev, DMA_BIT_MASK(64))) {
         dev_err(&men->dev, "Failed to set DMA mask\n");
         goto fail_mask;
     }
-    pci_set_consistent_dma_mask(men->pdev, DMA_BIT_MASK(64));
+    dma_set_coherent_mask(&men->pdev->dev, DMA_BIT_MASK(64));
     men->sgl_dma_pool = dmam_pool_create("me5_sgl", &men->pdev->dev,
             sizeof(struct me4_sgl), 128, PCI_PAGE_SIZE);
     if (!men->sgl_dma_pool) {
@@ -1409,7 +1408,7 @@ me5_probe(struct siso_menable *men)
         goto fail_pool;
     }
 
-    men->d5->dummypage = pci_alloc_consistent(men->pdev, PCI_PAGE_SIZE, &men->d5->dummypage_dma);
+    men->d5->dummypage = dma_alloc_coherent(&men->pdev->dev, PCI_PAGE_SIZE, &men->d5->dummypage_dma, GFP_ATOMIC);
     if (men->d5->dummypage == NULL) {
         dev_err(&men->dev, "Failed to allocate dummy page\n");
         goto fail_dummy;
@@ -1488,7 +1487,7 @@ fail_irq:
     men_del_uiqs(men, 0);
     kfree(men->uiqs);
 fail_uiqs:
-	pci_free_consistent(men->pdev, PCI_PAGE_SIZE, men->d5->dummypage, men->d5->dummypage_dma);
+	dma_free_coherent(&men->pdev->dev, PCI_PAGE_SIZE, men->d5->dummypage, men->d5->dummypage_dma);
 fail_dummy:
     dmam_pool_destroy(men->sgl_dma_pool);
 fail_pool:

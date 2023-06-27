@@ -21,7 +21,7 @@ void * alloc_pageable_cacheable_small_zeros(size_t size, uint32_t tag) {
 }
 
 void free_pageable_cacheable_small(void * mem, uint32_t tag) {
-    free_pageable_cacheable_small(mem, tag);
+    vfree(mem);
 }
 
 void * alloc_pageable_cacheable_large(size_t size, uint32_t tag) {

@@ -557,9 +557,9 @@ me4_create_dummybuf(struct siso_menable *men, struct menable_dmabuf *db)
 		cur->pcie4->addr[i] = cpu_to_le64(men->d4->dummypage_dma + 0x1);
 
 	cur->pcie4->next = cpu_to_le64(db->dma + 0x2);
-	
+
 	db->buf_length = -1;
-	
+
 	return 0;
 
 fail_pcie:
@@ -580,7 +580,7 @@ me4_exit(struct siso_menable *men)
 {
     free_irq(men->pdev->irq, men);
     dmam_pool_destroy(men->sgl_dma_pool);
-	pci_free_consistent(men->pdev, PCI_PAGE_SIZE, men->d4->dummypage, men->d4->dummypage_dma);
+	dma_free_coherent(&men->pdev->dev, PCI_PAGE_SIZE, men->d4->dummypage, men->d4->dummypage_dma);
 	kfree(men->uiqs);
 	kfree(men->d4);
 }
@@ -614,7 +614,7 @@ me4_startdma(struct siso_menable *men, struct menable_dmachan *dmac)
 
 	me4_abortdma(men, dmac);
 
-	dir = (dmac->direction == PCI_DMA_TODEVICE) ? 2 : 1;
+	dir = (dmac->direction == DMA_TO_DEVICE) ? 2 : 1;
 
 	tmp = men->register_interface.read(&men->register_interface, dmac->iobase + ME4_DMATYPE);
 	if (!(tmp & dir))
@@ -777,11 +777,11 @@ me4_probe(struct siso_menable *men)
 	me4_reset_core(men);
 	me4_stopirq(men);
 
-	if (pci_set_dma_mask(men->pdev, DMA_BIT_MASK(64))) {
+	if (dma_set_mask(&men->pdev->dev, DMA_BIT_MASK(64))) {
 		dev_err(&men->dev, "Failed to set DMA mask\n");
 		goto fail_mask;
 	}
-	pci_set_consistent_dma_mask(men->pdev, DMA_BIT_MASK(64));
+	dma_set_coherent_mask(&men->pdev->dev, DMA_BIT_MASK(64));
 	men->sgl_dma_pool = dmam_pool_create("me4_sgl", &men->pdev->dev,
 			sizeof(struct me4_sgl), 128, PCI_PAGE_SIZE);
 	if (!men->sgl_dma_pool) {
@@ -790,7 +790,8 @@ me4_probe(struct siso_menable *men)
 	}
 
 	ret = -ENOMEM;
-	men->d4->dummypage = pci_alloc_consistent(men->pdev, PCI_PAGE_SIZE, &men->d4->dummypage_dma);
+	men->d4->dummypage = dma_alloc_coherent(&men->pdev->dev, PCI_PAGE_SIZE,
+	&men->d4->dummypage_dma, GFP_ATOMIC);
 	if (men->d4->dummypage == NULL) {
     	dev_err(&men->dev, "Failed to allocate dummy page\n");
 		goto fail_dummy;
@@ -817,7 +818,7 @@ me4_probe(struct siso_menable *men)
 
 	men->config = men->register_interface.read(&men->register_interface, ME4_CONFIG);
 	men->config_ex = men->register_interface.read(&men->register_interface, ME4_CONFIG_EX);
-	
+
 	uiqcnt = men->register_interface.read(&men->register_interface, ME4_UIQCNT);
 	uiqoffs = men->register_interface.read(&men->register_interface, ME4_FIRSTUIQ);
 
@@ -863,7 +864,7 @@ fail_irq:
 	men_del_uiqs(men, 0);
 	kfree(men->uiqs);
 fail_uiqs:
-    pci_free_consistent(men->pdev, PCI_PAGE_SIZE, men->d4->dummypage, men->d4->dummypage_dma);
+    dma_free_coherent(&men->pdev->dev, PCI_PAGE_SIZE, men->d4->dummypage, men->d4->dummypage_dma);
 fail_dummy:
     dmam_pool_destroy(men->sgl_dma_pool);
 fail_pool:

@@ -16,11 +16,11 @@
 
 #include "debugging_macros.h"
 
-/* 
+/*
  * The functions `mmap_write_lock` and `mmap_write_unlock` exist in the following kernel versions:
  *    - 5.4.x with x >= 208
  *    - 5.8 and above
- * 
+ *
  * For all other versions we define them ourselves.
  */
 #if (LINUX_VERSION_CODE < KERNEL_VERSION(5,4,208)) \
@@ -76,7 +76,7 @@ get_page_addresses(unsigned long addr, const size_t length, struct page ***pages
      * VM_DONTCOPY prevents the buffer from being copied when the process
      * is forked.
      */
-    vma->vm_flags |= VM_DONTCOPY;
+    vm_flags_set(vma, VM_DONTCOPY);
     runlen = vma->vm_end - vma->vm_start;
     while (runlen < length) {
         vma = find_vma(current->mm, addr + runlen);
@@ -84,10 +84,10 @@ get_page_addresses(unsigned long addr, const size_t length, struct page ***pages
             printk(KERN_ERR "Next VMA not found for buffer");
             ret = -EFAULT;
             goto fail_mem;
-            
+
         }
 
-        vma->vm_flags |= VM_DONTCOPY;
+        vm_flags_set(vma, VM_DONTCOPY);
         runlen += vma->vm_end - vma->vm_start;
     }
 
@@ -210,13 +210,13 @@ men_create_userbuf(struct siso_menable *men, struct men_io_range *range)
 
     vfree(pages);
     pages = NULL;
-    
+
     dma_buf->num_sg_entries = num_pages;
     dma_buf->num_used_sg_entries =
         dma_map_sg(&men->pdev->dev, dma_buf->sg, dma_buf->num_sg_entries, DMA_FROM_DEVICE);
     if (dma_buf->num_used_sg_entries == 0)
         goto fail_map;
-        
+
     dma_buf->index = range->subnr;
     /* this will also free dma_buf->dma_chain on error */
     ret = men->create_buf(men, dma_buf, dummybuf);
@@ -233,7 +233,7 @@ men_create_userbuf(struct siso_menable *men, struct men_io_range *range)
         goto fail_bh;
 
     buf_head->bufs[range->subnr] = dma_buf;
-    
+
     /* now everything is fine. Go and add this buffer to the free list */
     dma_chan = buf_head->chan;
     if (dma_chan != NULL) {

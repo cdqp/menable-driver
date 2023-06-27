@@ -25,7 +25,6 @@
 #include <linux/pci.h>
 #include <linux/msi.h>
 #include <linux/vmalloc.h>
-#include <stdbool.h>
 
 #include <lib/helpers/helper.h>
 #include <lib/boards/peripheral_declaration.h>
@@ -951,7 +950,7 @@ me6_dma_irq(struct siso_menable *men, int dma_idx, menable_timespec_t *ts, bool 
                         DEV_DBG_ACQ(&men->dev, "Received frame number %llu.", sb->frame_number);
                     }
                 }
-                
+
                 /* At this point the buffer we just received is ready to use by the user application.
                  * We release the lock so the user has a chance to pick up the frame and/or unlock
                  * a buffer (if in blocking mode) before we continue. */
@@ -964,10 +963,10 @@ me6_dma_irq(struct siso_menable *men, int dma_idx, menable_timespec_t *ts, bool 
                 if (waiting->frame <= dc->goodcnt)
                     complete(&waiting->cpl);
             }
-            
+
             /* TODO: [RKN] We could release the listlock here for a moment to allow
              *             unlocking of a buffer to reduce the risk of losing a frame
-             *             in the dummy buffer. Should we do this? Or should we keep the 
+             *             in the dummy buffer. Should we do this? Or should we keep the
              *             irq handler as fast as possible? */
 
             DEV_DBG_ACQ(&men->dev, "Frames remaining: %llu.", dc->transfer_todo);
@@ -1429,7 +1428,7 @@ me6_exit(struct siso_menable *men)
     if (men->d6->exit != NULL)
         men->d6->exit(men->d6);
 
-    pci_free_consistent(men->pdev, PCI_PAGE_SIZE, men->d6->dummypage, men->d6->dummypage_dma);
+    dma_free_coherent(&men->pdev->dev, PCI_PAGE_SIZE, men->d6->dummypage, men->d6->dummypage_dma);
     dmam_pool_destroy(men->sgl_dma_pool);
 
     kfree(men->uiqs);
@@ -1808,7 +1807,7 @@ fail_irq_request:
     pci_free_irq_vectors(men->pdev);
 
 fail_irq_alloc:
-    pci_free_consistent(men->pdev, PCI_PAGE_SIZE, men->d6->dummypage, men->d6->dummypage_dma);
+    dma_free_coherent(&men->pdev->dev, PCI_PAGE_SIZE, men->d6->dummypage, men->d6->dummypage_dma);
 
 fail_dummy:
     dmam_pool_destroy(men->sgl_dma_pool);

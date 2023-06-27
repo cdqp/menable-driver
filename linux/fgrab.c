@@ -135,8 +135,8 @@ fg_start_transfer(struct siso_menable *men, struct fg_ctrl *fgr, const size_t ts
 	dma_chan->timeout = (fgr->timeout < INT_MAX - 1) ? fgr->timeout : 0;
 
 	dma_chan->direction = (fgr->dma_dir == MEN_DMA_DIR_DEVICE_TO_CPU)
-	                        ? PCI_DMA_FROMDEVICE
-	                        : PCI_DMA_TODEVICE;
+	                        ? DMA_FROM_DEVICE
+	                        : DMA_TO_DEVICE;
 
 	INIT_WORK(&dma_chan->dwork, men_dma_done_work);
 	dma_chan->mode = fgr->mode;
