@@ -1,0 +1,6 @@
+#!/bin/sh
+
+chgrp video /sys$1/img
+chgrp video /sys$1/lost
+
+exit 0
