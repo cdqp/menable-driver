@@ -13,7 +13,6 @@
 #include <linux/vmalloc.h>
 #include "menable.h"
 #include "menable_ioctl.h"
-#include "linux_version.h"
 #include "sisoboards.h"
 
 struct me_threadgroup *
@@ -229,11 +228,7 @@ men_wait_dmaimg(struct menable_dmachan *dma_chan, int64_t img,
     spin_unlock_irqrestore(&dma_chan->listlock, flags);
 	
 	timeout_jiffies = msecs_to_jiffies(timeout_msecs);
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 35)
     wait_for_completion_killable_timeout(&waitstr.cpl, timeout_jiffies);
-#else
-    wait_for_completion_interruptible_timeout(&waitstr.cpl, timeout_jiffies);
-#endif
 
     spin_lock_irqsave(&dma_chan->listlock, flags);
     list_del(&waitstr.node);

@@ -33,10 +33,6 @@
 #include "menable_uapi.h"
 #include "menable_ioctl.h"
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 23)
-#error This driver requires at least kernel 2.6.23
-#endif
-
 /* Maximum number of devices the driver can handle. Only
 * effect is the size of the device number region. Increase
 * it to any size you need. */
@@ -63,6 +59,13 @@
 #include <linux/bitops.h>
 #include <linux/types.h>
 #include <linux/mutex.h>
+// these includes were from linux_version.h
+//#include <linux/sched.h>
+//#include <linux/signal.h>
+//#include <linux/scatterlist.h>
+//#include <linux/version.h>
+#include <linux/module.h>
+//#include <linux/stat.h>
 
 #include "lib/fpga/menable_register_interface.h"
 #include "lib/uiq/uiq_transfer_state.h"
@@ -87,13 +90,8 @@
 /* currently at most 2 FPGAs implement IRQs */
 #define MAX_FPGAS 2
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 17, 0)
-typedef time_t menable_time_t;
-typedef struct timespec menable_timespec_t;
-#else
 typedef time64_t menable_time_t;
 typedef struct timespec64 menable_timespec_t;
-#endif
 
 void menable_get_ts(menable_timespec_t *ts);
 
@@ -195,7 +193,6 @@ struct menable_uiq;
 struct siso_menable {
     /* kernel stuff */
     struct device dev;
-    struct module *owner;
     struct pci_dev *pdev;
     spinlock_t boardlock;
     struct dma_pool *sgl_dma_pool;
@@ -437,4 +434,15 @@ rmsr64(const u64 dest, const u64 src, const int h, const int l, const int s)
     return (dest & ~(m >> s)) | ((src & m) >> s);
 }
 
+
+// these defines used to be in linux_version.h
+#define __devinit
+#define __devinitdata
+#define __devexit
+#define __devexit_p(x) x
+#define DEFINE_PCI_DEVICE_TABLE(_table) \
+    struct pci_device_id _table[] __devinitdata
+#define to_delayed_work(_work)  container_of(_work, struct delayed_work, work)
+
 #endif /* MENABLE_H */
+

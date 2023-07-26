@@ -11,10 +11,8 @@
 #include <linux/io.h>
 #include <linux/version.h>
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 1, 0)
 #include <linux/spinlock_types.h>
 #include <asm/cmpxchg.h>
-#endif
 
 #include <asm/cpufeature.h>
 #include <asm/pgtable.h>
@@ -39,7 +37,6 @@
 #include <lib/uiq/uiq_helper.h>
 
 #include "uiq.h"
-#include "linux_version.h"
 #include "sisoboards.h"
 
 static dev_t devr;
@@ -56,15 +53,9 @@ static struct lock_class_key men_design_lock;
 static struct lock_class_key men_head_lock;
 static int maxidx;
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 17, 0)
-static inline void _menable_get_ts(menable_timespec_t * ts) {
-    return ktime_get_ts(ts);
-}
-#else
 static inline void _menable_get_ts(menable_timespec_t * ts) {
     return ktime_get_ts64(ts);
 }
-#endif
 
 static menable_time_t timespec_tv_sec_offset;
 
@@ -563,7 +554,6 @@ static int __devinit menable_pci_probe(struct pci_dev *pdev,
         return -ENOMEM;
     }
 
-    men->owner = menable_class->owner;
     men->dev.parent = &pdev->dev;
     men->pdev = pdev;
     men->dev.release = menable_obj_release;
@@ -594,7 +584,6 @@ static int __devinit menable_pci_probe(struct pci_dev *pdev,
      * for the device.
      */
     cdev_init(&men->cdev, &menable_fops);
-    men->cdev.owner = men->dev.class->owner;
     kobject_set_name(&men->cdev.kobj, "menablec%i", men->idx);
 
     ret = cdev_add(&men->cdev, devr + men->idx, 1);
@@ -733,8 +722,6 @@ static struct device_attribute men_device_attributes[3] = {
     __ATTR_NULL,
 };
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 12, 0)
-
 static struct attribute * men_device_attrs[3] = {
     &men_device_attributes[0].attr,
     &men_device_attributes[1].attr,
@@ -761,8 +748,6 @@ static struct attribute * men_uiq_attrs[6] = {
 };
 
 ATTRIBUTE_GROUPS(men_uiq);
-
-#endif /* LINUX >= 3.12.0 */
 
 static void timespec_diff(menable_timespec_t *start, menable_timespec_t *stop,
                    menable_timespec_t *result)
@@ -799,27 +784,27 @@ static int __init menable_init(void)
         return ret;
     }
 
-    menable_class = class_create(THIS_MODULE, "menable");
+    menable_class = class_create("menable");
     if (IS_ERR(menable_class)) {
         ret = PTR_ERR(menable_class);
         goto err_class;
     }
 
-    menable_uiq_class = class_create(THIS_MODULE, "menable_uiq");
+    menable_uiq_class = class_create("menable_uiq");
     if (IS_ERR(menable_uiq_class)) {
         ret = PTR_ERR(menable_uiq_class);
         goto err_uiq_class;
     }
 
-    menable_dma_class = class_create(THIS_MODULE, "menable_dma");
+    menable_dma_class = class_create("menable_dma");
     if (IS_ERR(menable_dma_class)) {
         ret = PTR_ERR(menable_dma_class);
         goto err_dma_class;
     }
 
-	// Since the IOCTLs use the old struct timespec, make sure we use
-	// a timestamp relative to the start of the driver;
-	// this gives us 2^31 - 1 seconds (~68 years) until overflow
+    // Since the IOCTLs use the old struct timespec, make sure we use
+    // a timestamp relative to the start of the driver;
+    // this gives us 2^31 - 1 seconds (~68 years) until overflow
     menable_timespec_t now;
     menable_get_ts(&now);
     timespec_tv_sec_offset = now.tv_sec;
@@ -842,15 +827,9 @@ static int __init menable_init(void)
     }
     printk(KERN_INFO "%s: frame timestamp resolution is at least %lluns\n", DRIVER_NAME, dns_min);
     
-#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 12, 0)
-    menable_class->dev_attrs = men_device_attributes;
-    menable_uiq_class->dev_attrs = men_uiq_attributes;
-    menable_dma_class->dev_attrs = men_dma_attributes;
-#else /* LINUX < 3.12.0 */
     menable_class->dev_groups = men_device_groups;
     menable_uiq_class->dev_groups = men_uiq_groups;
     menable_dma_class->dev_groups = men_dma_groups;
-#endif /* LINUX < 3.12.0 */
 
     ret = pci_register_driver(&menable_pci_driver);
     if (ret)

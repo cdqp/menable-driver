@@ -8,7 +8,6 @@
 
 #include <linux/types.h>
 #include "menable.h"
-#include "linux_version.h"
 
 int
 buf_get_uint(const char *buf, size_t count, uint32_t *res)
@@ -16,11 +15,7 @@ buf_get_uint(const char *buf, size_t count, uint32_t *res)
 	unsigned long tmp;
 	int err;
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 2, 0)
-	err = strict_strtoul(buf, 0, &tmp);
-#else
 	err = kstrtoul(buf, 0, &tmp);
-#endif
 
 	if (err != 0)
 		return err;

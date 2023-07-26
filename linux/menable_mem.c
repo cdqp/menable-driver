@@ -12,30 +12,8 @@
 #include <linux/sched.h>
 #include "menable.h"
 #include "menable_ioctl.h"
-#include "linux_version.h"
 
 #include "debugging_macros.h"
-
-/*
- * The functions `mmap_write_lock` and `mmap_write_unlock` exist in the following kernel versions:
- *    - 5.4.x with x >= 208
- *    - 5.8 and above
- *
- * For all other versions we define them ourselves.
- */
-#if (LINUX_VERSION_CODE < KERNEL_VERSION(5,4,208)) \
-    || (LINUX_VERSION_CODE >= KERNEL_VERSION(5,5,0) && LINUX_VERSION_CODE < KERNEL_VERSION(5,8,0))
-
-static inline void mmap_write_lock(struct mm_struct *mm)
-{
-	down_write(&mm->mmap_sem);
-}
-
-static inline void mmap_write_unlock(struct mm_struct *mm)
-{
-	up_write(&mm->mmap_sem);
-}
-#endif
 
 /**
 * get_page_addresses - get addresses of user pages
@@ -92,26 +70,8 @@ get_page_addresses(unsigned long addr, const size_t length, struct page ***pages
     }
 
     /* pin the user pages in memory and get the physical addresses */
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 6, 0)
-    /* Kernel 5.6 introduces a new function specifically for pinning memory */
     ret = pin_user_pages(addr,
         len, FOLL_LONGTERM | ((write == 1) ? FOLL_WRITE : 0), *pages, NULL);
-#elif LINUX_VERSION_CODE >= KERNEL_VERSION(5, 2, 0)
-    /* Kernel 5.2 introduces FOLL_LONGTERM, allowing memory defragmentation before pinning */
-    ret = get_user_pages(addr,
-        len, FOLL_LONGTERM | ((write == 1) ? FOLL_WRITE : 0), *pages, NULL);
-#elif LINUX_VERSION_CODE >= KERNEL_VERSION(4, 9, 0)
-    /* Kernel 4.9 replaces the force flag with the more genearal gup_flags */
-    ret = get_user_pages(addr,
-        len, (write == 1) ? FOLL_WRITE : 0, *pages, NULL);
-#elif LINUX_VERSION_CODE >= KERNEL_VERSION(4, 6, 0)
-    /* Kernel 4.6 introduces a new signature to get_user_pages and uses current, current->mm implicitly */
-    ret = get_user_pages(addr,
-        len, 0, *pages, NULL);
-#else /* LINUX < 4.6.0 */
-    ret = get_user_pages(current, current->mm, addr,
-        len, write, 0, *pages, NULL);
-#endif
     if (ret < 0) {
         goto fail_mem;
     }
@@ -256,11 +216,7 @@ fail_create:
     dma_unmap_sg(&men->pdev->dev, dma_buf->sg, dma_buf->num_sg_entries, DMA_FROM_DEVICE);
 fail_map:
     for (i = dma_buf->num_sg_entries - 1; i >= 0; i--) {
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 6, 0)
         unpin_user_page(sg_page(dma_buf->sg + i));
-#else
-        put_page(sg_page(dma_buf->sg + i));
-#endif
     }
 fail_dmat:
     kfree(dma_buf->sg);
@@ -269,11 +225,7 @@ fail_sg:
 fail_dma_buf:
     if (pages) {
         for (i = num_pages - 1; i >= 0; i--) {
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 6, 0)
             unpin_user_page(pages[i]);
-#else
-            put_page(pages[i]);
-#endif
         }
         vfree(pages);
     }
@@ -291,11 +243,7 @@ men_destroy_sb(struct siso_menable *men, struct menable_dmabuf *sb)
 
     dma_unmap_sg(&men->pdev->dev, sb->sg, sb->num_sg_entries, DMA_FROM_DEVICE);
     for (i = sb->num_sg_entries - 1; i >= 0; i--) {
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 6, 0)
         unpin_user_page(sg_page(sb->sg + i));
-#else
-        put_page(sg_page(sb->sg + i));
-#endif
     }
     kfree(sb->sg);
     kfree(sb);

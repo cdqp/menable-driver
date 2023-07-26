@@ -23,8 +23,6 @@
 #include "sisoboards.h"
 #include "uiq.h"
 
-#include "linux_version.h"
-
 #include <lib/helpers/type_hierarchy.h>
 #include <lib/helpers/bits.h>
 #include <lib/uiq/uiq_helper.h>
@@ -541,11 +539,7 @@ me5_ioctl(struct siso_menable *men, const unsigned int cmd,
                     if ((!handler->quit_requested)
                             && ((handler->notification_time_stamp == notification_ts) || (!notifications))) {
                         // Wait until a notification is received
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 35)
                         wakeup_time = wait_for_completion_killable_timeout(&handler->notification_available, msecs_to_jiffies(250));
-#else
-                        wakeup_time = wait_for_completion_interruptible_timeout(&handler->notification_available, msecs_to_jiffies(250));
-#endif
                     }
 
                     spin_lock_irqsave(&men->d5->notification_data_lock, flags);

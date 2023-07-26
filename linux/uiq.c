@@ -29,14 +29,9 @@
 #include <linux/stddef.h>
 
 #include "uiq.h"
-#include "linux_version.h"
 #include "debugging_macros.h"
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 11, 0)
 #include <linux/sched/signal.h>
-#else   /* LINUX < 4.11.0 */
-#include <linux/sched.h>
-#endif  /* LINUX >= 4.11.0 */
 
 uint32_t
 men_fetch_next_incoming_uiq_word(uiq_transfer_state * transfer_state, messaging_dma_declaration * msg_dma_decl, register_interface * register_interface, uint32_t data_register_address) {
@@ -251,9 +246,7 @@ men_uiq_push(uiq_base * uiq_base)
 
 static ssize_t
 uiq_read(
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 35)
 struct file *filp,
-#endif /* LINUX >= 2.6.35 */
 struct kobject *kobj, struct bin_attribute *attr, char *buf,
     loff_t off, size_t buffer_size)
 {
@@ -278,11 +271,7 @@ struct kobject *kobj, struct bin_attribute *attr, char *buf,
 
         do {
             spin_unlock_irqrestore(&uiq->lock, flags);
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 35)
             long completion_status = wait_for_completion_killable_timeout(&uiq->cpl, jiffies_until_timeout);
-#else
-            long completion_status = wait_for_completion_interruptible_timeout(&uiq->cpl, jiffies_until_timeout);
-#endif
             some_data_received = (completion_status > 0);
 
             spin_lock_irqsave(&uiq->lock, flags);
@@ -308,9 +297,7 @@ struct kobject *kobj, struct bin_attribute *attr, char *buf,
 
 static ssize_t
 uiq_write(
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 35)
 struct file *filp,
-#endif /* LINUX >= 2.6.35 */
 struct kobject *kobj, struct bin_attribute *attr, char *buf,
     loff_t off, size_t buffer_size)
 {
@@ -347,11 +334,7 @@ struct kobject *kobj, struct bin_attribute *attr, char *buf,
         do {
             spin_unlock_irqrestore(&uiq->lock, flags);
             dev_dbg(&uiq->dev, "%s - Wait for completion\n", __FUNCTION__);
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 35)
             jiffies_until_timeout = wait_for_completion_killable_timeout(&uiq->cpl, jiffies_until_timeout);
-#else
-            jiffies_until_timeout = wait_for_completion_interruptible_timeout(&uiq->cpl, jiffies_until_timeout);
-#endif
             spin_lock_irqsave(&uiq->lock, flags);
             if (uiq->cpltodo == -1) {
                 dev_dbg(&uiq->dev, "%s - cpldtodo unexpectedly set to -1\n", __FUNCTION__);

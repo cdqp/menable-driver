@@ -32,11 +32,7 @@
 
 #endif /* BITS_PER_LONG > 32 */
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 5, 0)
-typedef struct timespec menable_ioctl_timespec_t;
-#else
 typedef struct __kernel_old_timespec menable_ioctl_timespec_t;
-#endif
 
 struct men_io_range32 {
     uint32_t start;

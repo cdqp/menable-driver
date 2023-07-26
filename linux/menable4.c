@@ -19,8 +19,6 @@
 #include "menable_ioctl.h"
 #include "uiq.h"
 
-#include "linux_version.h"
-
 #include "lib/controllers/spi_defines.h"
 
 static DEVICE_ATTR(design_crc, 0660, men_get_des_val, men_set_des_val);
