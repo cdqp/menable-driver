@@ -1,5 +1,5 @@
 /************************************************************************
- * Copyright 2006-2020 Silicon Software GmbH, 2021-2022 Basler AG
+ * Copyright 2006-2020 Silicon Software GmbH, 2021-2024 Basler AG
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License (version 2) as
@@ -8,19 +8,10 @@
 
 #include "cxp_frontend.h"
 
- /* debugging */
-#ifdef DBG_CXP_FRONTEND_OFF
- // OFF takes precedence over ON
-#	undef DEBUG
-#elif defined(DBG_CXP_FRONTEND)
- // Debugging for this component is explicitly turned on -> enable debug and trace output.
-#	undef DEBUG
-#	define DEBUG
-
-#	undef DBG_LEVEL
-#	define DBG_LEVEL 1
-
-#	define DBG_TRACE_ON 1
+/* debugging first */
+#if defined(DBG_CXP_FRONTEND)
+#	undef MEN_DEBUG
+#	define MEN_DEBUG
 #endif
 
 #define DBG_NAME "[CXP] "
@@ -69,6 +60,8 @@
 #define REG_CXP_DOWNLINK_BITRATE_1 0x803
 #define REG_CXP_DOWNLINK_BITRATE_2 0x804
 #define REG_CXP_DOWNLINK_BITRATE_3 0x805
+#define REG_CXP_DOWNLINK_BITRATE_4 0x818
+
 #define CXP_DOWNLINK_BITRATE_1250  0x0
 #define CXP_DOWNLINK_BITRATE_2500  0x1
 #define CXP_DOWNLINK_BITRATE_3125  0x2
@@ -94,6 +87,11 @@
 #define REG_CXP_DISCOVERY_CONFIG 0x808
 
 #define REG_CXP_LED_CTRL_0               0x811
+#define REG_CXP_LED_CTRL_1               0x812
+#define REG_CXP_LED_CTRL_2               0x813
+#define REG_CXP_LED_CTRL_3               0x814
+#define REG_CXP_LED_CTRL_4               0x81B
+
 #define CXP_LED_CTRL_BOOTING             0x0
 #define CXP_LED_CTRL_POWERED             0x1
 #define CXP_LED_CTRL_DISCOVERY           0x2
@@ -169,6 +167,131 @@ static uint64_t cxp_port_maps_4ch[CXP_NUM_PORT_MAP_ENTRIES_4C] = {
 	CXP_PORT_MAP_INVALID
 };
 
+#define CXP_NUM_PORT_MAP_ENTRIES_5C 121
+static uint64_t cxp_port_maps_5ch[CXP_NUM_PORT_MAP_ENTRIES_5C] = {
+	0x7654321076543210ull,
+	0x7653421076534210ull,
+	0x7654231076542310ull,
+	0x7653241076524310ull,
+	0x7652431076532410ull,
+	0x7652341076523410ull,
+	0x7654312076543120ull,
+	0x7653412076534120ull,
+	0x7654213076541320ull,
+	0x7653214076514320ull,
+	0x7652413076531420ull,
+	0x7652314076513420ull,
+	0x7654132076542130ull,
+	0x7653142076524130ull,
+	0x7654123076541230ull,
+	0x7653124076514230ull,
+	0x7652143076521430ull,
+	0x7652134076512430ull,
+	0x7651432076532140ull,
+	0x7651342076523140ull,
+	0x7651423076531240ull,
+	0x7651324076513240ull,
+	0x7651243076521340ull,
+	0x7651234076512340ull,
+	0x7654320176543201ull,
+	0x7653420176534201ull,
+	0x7654230176542301ull,
+	0x7653240176524301ull,
+	0x7652430176532401ull,
+	0x7652340176523401ull,
+	0x7654310276543021ull,
+	0x7653410276534021ull,
+	0x7654210376540321ull,
+	0x7653210476504321ull,
+	0x7652410376530421ull,
+	0x7652310476503421ull,
+	0x7654130276542031ull,
+	0x7653140276524031ull,
+	0x7654120376540231ull,
+	0x7653120476504231ull,
+	0x7652140376520431ull,
+	0x7652130476502431ull,
+	0x7651430276532041ull,
+	0x7651340276523041ull,
+	0x7651420376530241ull,
+	0x7651320476503241ull,
+	0x7651240376520341ull,
+	0x7651230476502341ull,
+	0x7654302176543102ull,
+	0x7653402176534102ull,
+	0x7654203176541302ull,
+	0x7653204176514302ull,
+	0x7652403176531402ull,
+	0x7652304176513402ull,
+	0x7654301276543012ull,
+	0x7653401276534012ull,
+	0x7654201376540312ull,
+	0x7653201476504312ull,
+	0x7652401376530412ull,
+	0x7652301476503412ull,
+	0x7654103276541032ull,
+	0x7653104276514032ull,
+	0x7654102376540132ull,
+	0x7653102476504132ull,
+	0x7652104376510432ull,
+	0x7652103476501432ull,
+	0x7651403276531042ull,
+	0x7651304276513042ull,
+	0x7651402376530142ull,
+	0x7651302476503142ull,
+	0x7651204376510342ull,
+	0x7651203476501342ull,
+	0x7654032176542103ull,
+	0x7653042176524103ull,
+	0x7654023176541203ull,
+	0x7653024176514203ull,
+	0x7652043176521403ull,
+	0x7652034176512403ull,
+	0x7654031276542013ull,
+	0x7653041276524013ull,
+	0x7654021376540213ull,
+	0x7653021476504213ull,
+	0x7652041376520413ull,
+	0x7652031476502413ull,
+	0x7654013276541023ull,
+	0x7653014276514023ull,
+	0x7654012376540123ull,
+	0x7653012476504123ull,
+	0x7652014376510423ull,
+	0x7652013476501423ull,
+	0x7651043276521043ull,
+	0x7651034276512043ull,
+	0x7651042376520143ull,
+	0x7651032476502143ull,
+	0x7651024376510243ull,
+	0x7651023476501243ull,
+	0x7650432176532104ull,
+	0x7650342176523104ull,
+	0x7650423176531204ull,
+	0x7650324176513204ull,
+	0x7650243176521304ull,
+	0x7650234176512304ull,
+	0x7650431276532014ull,
+	0x7650341276523014ull,
+	0x7650421376530214ull,
+	0x7650321476503214ull,
+	0x7650241376520314ull,
+	0x7650231476502314ull,
+	0x7650413276531024ull,
+	0x7650314276513024ull,
+	0x7650412376530124ull,
+	0x7650312476503124ull,
+	0x7650214376510324ull,
+	0x7650213476501324ull,
+	0x7650143276521034ull,
+	0x7650134276512034ull,
+	0x7650142376520134ull,
+	0x7650132476502134ull,
+	0x7650124376510234ull,
+	0x7650123476501234ull,
+	CXP_PORT_MAP_INVALID
+};
+
 // clang-format on
 
 /**
@@ -187,6 +310,30 @@ static uint32_t cxp_get_physical_port_number_from_port_map(uint64_t port_map, ui
 	return ((port_map >> CXP_PORT_MAP_LOG2PHYS_PORT_SHIFT(logical_port_number)) & CXP_PORT_MAP_PORT_MASK);
 }
 
+static bool does_me6_firmware_support_tgs(uint32_t board_type, version_number firmware_version)
+{
+	typedef struct {
+		uint32_t board_type;
+		version_number min_firmware_version;
+	} tgs_min_firmware_version;
+
+	static const tgs_min_firmware_version min_firmware_versions_for_tgs[] = {
+		{PN_MICROENABLE6_CXP12_IC_1C,        {3, 2, 0}},
+		{PN_MICROENABLE6_CXP12_IC_2C,        {1, 1, 0}},
+		{PN_MICROENABLE6_CXP12_IC_4C,        {1, 1, 0}},
+		{PN_MICROENABLE6_IMAWORX_CXP12_QUAD, {1, 1, 0}},
+	};
+
+	for (size_t i = 0; i < ARRAY_SIZE(min_firmware_versions_for_tgs); ++i) {
+		if (board_type == min_firmware_versions_for_tgs[i].board_type) {
+			return is_version_greater_or_equal(firmware_version, min_firmware_versions_for_tgs[i].min_firmware_version);
+		}
+	}
+
+	/* We assume that all firmwares, which are not listed here, do support TGS, since newer boards will always support it. */
+	return true;
+}
+
 static bool does_board_applet_support_tgs(struct cxp_frontend* self) {
 
 	// check if board and firmware support setting stream id
@@ -196,40 +343,13 @@ static bool does_board_applet_support_tgs(struct cxp_frontend* self) {
 	unsigned int board_status = self->ri->read(self->ri, ME6_REG_BOARD_STATUS);
 	unsigned int firmware_version = ((board_status & 0x00ff00) >> 8) & 0xff;
 	unsigned int firmware_revision = ((board_status & 0xff0000) >> 16) & 0xff;
-	bool tgs_supported = false;
-	
-	switch (board_type) {
-	case PN_MICROENABLE6_IMAWORX_CXP12_QUAD:
-		if ((firmware_version == 1) && (firmware_revision == 1)) {
-			tgs_supported = true;
-			pr_debug(KBUILD_MODNAME ": " DBG_NAME " TGS is supported on imaWorx. firmware version %#x, revision %#x, board %#x\n", firmware_version, firmware_revision, board_type);
-		}
-		break;
-	case PN_MICROENABLE6_CXP12_IC_1C:
-		if ((firmware_version == 3) && (firmware_revision == 2)) {
-			tgs_supported = true;
-			pr_debug(KBUILD_MODNAME ": " DBG_NAME " TGS is supported on IC-1C. firmware version %#x, revision %#x, board %#x\n", firmware_version, firmware_revision, board_type);
-		}
-		break;
-	case PN_MICROENABLE6_CXP12_IC_2C:
-		if ((firmware_version == 1) && (firmware_revision == 1)) {
-			tgs_supported = true;
-			pr_debug(KBUILD_MODNAME ": " DBG_NAME " TGS is supported on IC-2C. firmware version %#x, revision %#x, board %#x\n", firmware_version, firmware_revision, board_type);
-		}
-		break;
-	case PN_MICROENABLE6_CXP12_IC_4C:
-		if ((firmware_version == 1) && (firmware_revision == 1)) {
-			tgs_supported = true;
-			pr_debug(KBUILD_MODNAME ": " DBG_NAME " TGS is supported on IC-4C. firmware version %#x, revision %#x, board %#x\n", firmware_version, firmware_revision, board_type);
-		}
-		break;
-	default:
-		pr_err(KBUILD_MODNAME ": " DBG_NAME " failed to set stream id; board type does not support TGS. Board type %#x\n", board_type);
-		return false;
-	}
+
+	/* All me6 boards support TGS, except IC-1C with a firmware below 3.2 */
+	const version_number fw_version = {firmware_version, firmware_revision, 0};
+	const bool tgs_supported = SisoBoardIsMe6(board_type) && does_me6_firmware_support_tgs(board_type, fw_version);
 
 	if (!tgs_supported) {
-		pr_err(KBUILD_MODNAME ": " DBG_NAME " failed to set stream id; firmware doesnot support TGS. firmware version %#x, revision %#x, board %#x\n", firmware_version, firmware_revision, board_type);
+		pr_err(KBUILD_MODNAME ": " DBG_NAME " failed to set stream id; firmware does not support TGS. firmware version %#x, revision %#x, board %#x\n", firmware_version, firmware_revision, board_type);
 	}
 
 	return tgs_supported;
@@ -433,17 +553,16 @@ static const char* cxp_get_data_path_speed_name(enum data_path_speed speed)
  */
 static int cxp_wait_port_data_path_speed_change_done(struct cxp_frontend* self, uint32_t physical_port_number)
 {
-	int ret                 = 0;
-	uint32_t status         = 0;
-	const uint32_t port_bit = CXP_DATA_PATH_STATUS_READY << CXP_DATA_PATH_STATUS_PORT_SHIFT(physical_port_number);
+    DBG_TRACE_BEGIN_FCT;
 
-	DBG_TRACE_BEGIN_FCT;
+    const uint32_t port_bit = CXP_DATA_PATH_STATUS_READY << CXP_DATA_PATH_STATUS_PORT_SHIFT(physical_port_number);
 
 	struct timeout timeout;
 	timeout_init(&timeout, self->data_path_speed_change_timeout_msecs);
 
 	self->ri->b2b_barrier(self->ri);
 
+    uint32_t status = 0;
 	int count = 0;
 	do {
 		status = self->ri->read(self->ri, self->data_path_status_register);
@@ -451,14 +570,15 @@ static int cxp_wait_port_data_path_speed_change_done(struct cxp_frontend* self, 
 	} while (((status & port_bit) != port_bit) && !timeout_has_elapsed(&timeout));
 	DBG1(pr_debug(KBUILD_MODNAME ": " DBG_NAME " read 0x%08x from register 0x%04x; %d cycles\n", status, self->data_path_status_register, count));
 
-	ret = (status & port_bit) != port_bit ? CXP_FRONTEND_ERROR_TIMEOUT : 0;
+	const int ret = ((status & port_bit) != port_bit)
+                      ? CXP_FRONTEND_ERROR_TIMEOUT
+                      : 0;
+
 	if (ret != 0) {
 		pr_err(KBUILD_MODNAME ": " DBG_NAME " timed out while waiting for data path speed change to be acknowledged");
 	}
 
-	DBG_TRACE_END_FCT;
-
-	return ret;
+	return DBG_TRACE_RETURN(ret);
 }
 
 /**
@@ -496,7 +616,7 @@ static int cxp_set_port_data_path_speed(struct cxp_frontend* self, uint32_t phys
 		}
 
 		/* Get uplink bitrate */
-		uint32_t new_data_path_up_speed = DATA_PATH_UP_SPEED_LOW;
+        data_path_up_speed new_data_path_up_speed = DATA_PATH_UP_SPEED_LOW;
 		if(new_data_path_speed >= DATA_PATH_SPEED_10000) {
 			new_data_path_up_speed = DATA_PATH_UP_SPEED_HIGH;
 		}
@@ -507,10 +627,11 @@ static int cxp_set_port_data_path_speed(struct cxp_frontend* self, uint32_t phys
 			ret = cxp_wait_port_data_path_speed_change_done(self, physical_port_number);
 			if (ret == 0) {
 				if (new_data_path_speed != self->ports[physical_port_number].data_path_dw_speed_cache) {
-					self->ports[physical_port_number].data_path_dw_speed_cache = new_data_path_speed;
 					DBG1(pr_debug(KBUILD_MODNAME ": " DBG_NAME " changing port %d data path speed: %s -> %s\n", physical_port_number,
-					              cxp_get_data_path_speed_name(old_data_path_speed), cxp_get_data_path_speed_name(new_data_path_speed)));
+					              cxp_get_data_path_speed_name(self->ports[physical_port_number].data_path_dw_speed_cache),
+					              cxp_get_data_path_speed_name(new_data_path_speed)));
 
+					self->ports[physical_port_number].data_path_dw_speed_cache = new_data_path_speed;
 
 					DBG1(pr_debug(KBUILD_MODNAME ": " DBG_NAME " writing 0x%08x to register 0x%04x\n", downlink_bitrate,
 					              self->ports[physical_port_number].downlink_bitrate_register));
@@ -526,9 +647,7 @@ static int cxp_set_port_data_path_speed(struct cxp_frontend* self, uint32_t phys
 		}
 	}
 
-	DBG_TRACE_END_FCT;
-
-	return ret;
+	return DBG_TRACE_RETURN(ret);
 }
 
 static const char* cxp_get_standard_version_name(enum cxp_standard_version version)
@@ -778,7 +897,7 @@ static int cxp_set_port_image_stream_id(struct cxp_frontend* self, uint32_t mast
 	}
 
 	if (!does_board_applet_support_tgs(self))
-		return DBG_TRACE_RETURN(CXP_FRONTEND_ERROR_TGSNOTSUPPORTED);
+		return DBG_TRACE_RETURN(CXP_FRONTEND_ERROR_APPLETDOESNOTSUPPORTTGS);
 
 	// check if cache values are same as input parameter values
 	if ((stream_id == self->ports[logical_port_number].stream_id_cache)) {
@@ -914,7 +1033,6 @@ static void cxp_reset_port(struct camera_frontend* base, unsigned int physical_p
 	struct cxp_frontend * self = downcast(base, struct cxp_frontend);
 
 	if (physical_port < self->num_ports) {
-		cxp_set_port_power_state(self, physical_port, POWER_STATE_ON);
 		cxp_set_port_data_path_state(self, physical_port, DATA_PATH_STATE_INACTIVE);
 		cxp_set_port_data_path_speed(self, physical_port, DATA_PATH_SPEED_3125);
 		cxp_set_port_standard_version(self, physical_port, CXP_STANDARD_VERSION_1_1);
@@ -922,6 +1040,8 @@ static void cxp_reset_port(struct camera_frontend* base, unsigned int physical_p
 		cxp_set_port_acquisition_state(self, physical_port, ACQUISITION_STATE_STOPPED);
 		cxp_set_port_camera_donwscaling(self, physical_port, 1);
 		cxp_set_port_image_stream_id(self, physical_port, -1);
+
+		// the PoCXP state is left as is. It is active on power up and afterwards it remains in the state which the user specified.
 	}
 
 	DBG_TRACE_END_FCT;
@@ -1016,27 +1136,27 @@ static int cxp_execute_command(struct camera_frontend * base, enum camera_comman
         break;
 
     case CAMERA_COMMAND_SET_PORT_POWER_STATE:
-        ret = self->set_port_power_state(self, args->set_port_param.port, args->set_port_param.param);
+        ret = self->set_port_power_state(self, args->set_port_param.port, (power_state)args->set_port_param.param);
         break;
 
     case CAMERA_COMMAND_SET_PORT_DATA_PATH_STATE:
-        ret = self->set_port_data_path_state(self, args->set_port_param.port, args->set_port_param.param);
+        ret = self->set_port_data_path_state(self, args->set_port_param.port, (data_path_state)args->set_port_param.param);
         break;
 
     case CAMERA_COMMAND_SET_PORT_DATA_PATH_SPEED:
-        ret = self->set_port_data_path_speed(self, args->set_port_param.port, args->set_port_param.param);
+        ret = self->set_port_data_path_speed(self, args->set_port_param.port, (data_path_speed)args->set_port_param.param);
         break;
 
     case CAMERA_COMMAND_SET_PORT_CXP_STANDARD_VERSION:
-        ret = self->set_port_standard_version(self, args->set_port_param.port, args->set_port_param.param);
+        ret = self->set_port_standard_version(self, args->set_port_param.port, (cxp_standard_version)args->set_port_param.param);
         break;
 
     case CAMERA_COMMAND_SET_PORT_CXP_LED_STATE:
-        ret = self->set_port_led_state(self, args->set_port_param.port, args->set_port_param.param);
+        ret = self->set_port_led_state(self, args->set_port_param.port, (cxp_led_state)args->set_port_param.param);
         break;
 
     case CAMERA_COMMAND_SET_PORT_ACQUISITION_STATE:
-        ret = self->set_port_acquisition_state(self, args->set_port_param.port, args->set_port_param.param);
+        ret = self->set_port_acquisition_state(self, args->set_port_param.port, (acquisition_state)args->set_port_param.param);
         break;
 
     case CAMERA_COMMAND_SET_PORT_CXP_CAMERA_DOWNSCALING:
@@ -1062,8 +1182,8 @@ static void cxp_port_init(struct cxp_port* self, uint32_t physical_port_number)
 {
 	DBG_TRACE_BEGIN_FCT;
 
-	self->downlink_bitrate_register = REG_CXP_DOWNLINK_BITRATE_0 + physical_port_number;
-	self->led_ctrl_register = REG_CXP_LED_CTRL_0 + physical_port_number;
+	self->downlink_bitrate_register = (physical_port_number < 4) ? REG_CXP_DOWNLINK_BITRATE_0 + physical_port_number : REG_CXP_DOWNLINK_BITRATE_4;
+	self->led_ctrl_register         = (physical_port_number < 4) ? REG_CXP_LED_CTRL_0 + physical_port_number : REG_CXP_LED_CTRL_4;
 	self->config_image_stream_id_register = REG_CONFIG_IMAGE_STREAM_ID_0 + physical_port_number;
 
 	self->power_state_cache = POWER_STATE_UNKNOWN;
@@ -1085,7 +1205,7 @@ static void cxp_port_init(struct cxp_port* self, uint32_t physical_port_number)
  */
 static int cxp_frontend_init(struct cxp_frontend* self, struct register_interface* ri, unsigned int num_physical_ports, int supports_idle_violation_fix)
 {
-	self->ports = alloc_nonpageable_cacheable_small_zeros(num_physical_ports * sizeof(*self->ports), MEMORY_TAG_PORTS);
+	self->ports = (struct cxp_port*)alloc_nonpageable_cacheable_small_zeros(num_physical_ports * sizeof(*self->ports), MEMORY_TAG_PORTS);
     if (self->ports == NULL) {
         pr_err(KBUILD_MODNAME ": " DBG_NAME " Failed to alloc memory for ports.");
         return STATUS_ERR_INSUFFICIENT_MEM;
@@ -1102,6 +1222,11 @@ static int cxp_frontend_init(struct cxp_frontend* self, struct register_interfac
 	self->ri = ri;
 
 	switch (num_physical_ports) {
+	case 5:
+		self->port_maps      = cxp_port_maps_5ch;
+		self->port_map_index = CXP_NUM_PORT_MAP_ENTRIES_5C - 1;
+		self->num_ports      = 5;
+		break;		
 	case 4:
 		self->port_maps      = cxp_port_maps_4ch;
 		self->port_map_index = CXP_NUM_PORT_MAP_ENTRIES_4C - 1;
@@ -1153,7 +1278,7 @@ static int cxp_frontend_init(struct cxp_frontend* self, struct register_interfac
 }
 
 struct cxp_frontend * cxp_frontend_alloc_and_init(struct register_interface* ri, unsigned int num_ports, int supports_idle_violation_fix) {
-    struct cxp_frontend * frontend = alloc_nonpageable_cacheable_small_zeros(sizeof(struct cxp_frontend), MEMORY_TAG_FRONTEND);
+    struct cxp_frontend * frontend = (struct cxp_frontend*)alloc_nonpageable_cacheable_small_zeros(sizeof(struct cxp_frontend), MEMORY_TAG_FRONTEND);
 
     if (frontend == NULL)
         return NULL;

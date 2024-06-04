@@ -1,12 +1,14 @@
 /************************************************************************
- * Copyright 2006-2020 Silicon Software GmbH, 2021-2022 Basler AG
+ * Copyright 2006-2020 Silicon Software GmbH, 2021-2024 Basler AG
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License (version 2) as
  * published by the Free Software Foundation.
  */
 
+#define MEN_DEBUG // define MEN_DEBUG so that dgb_print will be activated in `dbg.h`
 #include "dbg.h"
+
 #include "../os/print.h"
 #include "../os/string.h"
 

@@ -1,5 +1,5 @@
 /************************************************************************
- * Copyright 2006-2020 Silicon Software GmbH, 2021-2022 Basler AG
+ * Copyright 2006-2020 Silicon Software GmbH, 2021-2024 Basler AG
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License (version 2) as
@@ -25,6 +25,9 @@ extern messaging_dma_declaration me6_impulse_messaging_dma_declaration;
 #define ME6_IMPULSE_CXP_NUM_UIQS 16
 extern struct uiq_declaration me6_impulse_cxp_uiq_declaration[ME6_IMPULSE_CXP_NUM_UIQS];
 
+#define ME6_IMPULSE5_CXP_NUM_UIQS 20
+extern struct uiq_declaration me6_impulse5_cxp_uiq_declaration[ME6_IMPULSE5_CXP_NUM_UIQS];
+
 extern struct jtag_declaration me6_impulse_jtag_declaration;
 extern struct jtag_declaration me6_impulse_jtag_declaration;
 /* CXP data registers */
@@ -32,6 +35,7 @@ extern struct jtag_declaration me6_impulse_jtag_declaration;
 #define ME6_IMPULSE_CXP_REG_CMD_DATA_1 0x80b
 #define ME6_IMPULSE_CXP_REG_CMD_DATA_2 0x80d
 #define ME6_IMPULSE_CXP_REG_CMD_DATA_3 0x80f
+#define ME6_IMPULSE_CXP_REG_CMD_DATA_4 0x819
 
 /* DSN Parts */
 #define ME6_IMPULSE_DSN_LOW_STATIC_MAJOR_VERSION_SHIFT 0

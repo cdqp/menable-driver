@@ -1,5 +1,5 @@
 /************************************************************************
-* Copyright 2006-2020 Silicon Software GmbH, 2021-2022 Basler AG
+* Copyright 2006-2020 Silicon Software GmbH, 2021-2024 Basler AG
 *
 * This program is free software; you can redistribute it and/or modify
 * it under the terms of the GNU General Public License (version 2) as
@@ -18,10 +18,11 @@
 #include <linux/uaccess.h>
 #include <linux/sched.h>
 #include "menable5.h"
-#include "menable4.h"
 #include "menable_ioctl.h"
 #include "sisoboards.h"
 #include "uiq.h"
+
+#include "linux_version.h"
 
 #include <lib/helpers/type_hierarchy.h>
 #include <lib/helpers/bits.h>
@@ -252,52 +253,60 @@ me5_device_removed(struct siso_menable* men)
     unsigned long flags;
     int i;
 
-    spin_lock_irqsave(&men->boardlock, flags);
-    {
-        /* Flag releasing */
-        men->releasing = true;
+    /* TODO: This function has a lot in common with `menable_pci_remove`. See if this redundancy
+     *       can be removed or at least minimized. */
 
-        /* Stop IRQs */
-        men->stopirq(men);
-    }
-    spin_unlock_irqrestore(&men->boardlock, flags);
+    /* If the board has already been released or if it is being released right now
+     * by a different thread/process, nothing should be done here. */
+    if (!men->releasing) {
 
-    /* Flag design_changing */
-    spin_lock_irqsave(&men->designlock, flags);
-    {
-        while(men->design_changing) {
-            spin_unlock_irqrestore(&men->designlock, flags);
-            schedule();
-            spin_lock_irqsave(&men->designlock, flags);
+        spin_lock_irqsave(&men->boardlock, flags);
+        {
+            /* Flag releasing */
+            men->releasing = true;
+
+            /* Stop IRQs */
+            men->stopirq(men);
         }
-        men->design_changing = true;
-    }
-    spin_unlock_irqrestore(&men->designlock, flags);
+        spin_unlock_irqrestore(&men->boardlock, flags);
 
-    /* Notify all available Handlers for device close */
-    spin_lock_irqsave(&men->d5->notification_data_lock, flags);
-    {
-        men->d5->notifications |= NOTIFICATION_DEVICE_REMOVED;
-        men->d5->notification_time_stamp++;
-    }
-    spin_unlock_irqrestore(&men->d5->notification_data_lock, flags);
-    spin_lock(&men->d5->notification_handler_headlock);
-    {
-        list_for_each_entry(handler, &men->d5->notification_handler_heads, node) {
-            complete(&handler->notification_available);
+        /* Flag design_changing */
+        spin_lock_irqsave(&men->designlock, flags);
+        {
+            while(men->design_changing) {
+                spin_unlock_irqrestore(&men->designlock, flags);
+                schedule();
+                spin_lock_irqsave(&men->designlock, flags);
+            }
+            men->design_changing = true;
         }
-    }
-    spin_unlock(&men->d5->notification_handler_headlock);
+        spin_unlock_irqrestore(&men->designlock, flags);
 
-    /* Free DMAs */
-    spin_lock_bh(&men->buffer_heads_lock);
-    {
-        i = men_alloc_dma(men, 0);
-        // head_lock is unlocked inside men_alloc_dma !
-    }
-    BUG_ON(i != 0);
+        /* Notify all available Handlers for device close */
+        spin_lock_irqsave(&men->d5->notification_data_lock, flags);
+        {
+            men->d5->notifications |= NOTIFICATION_DEVICE_REMOVED;
+            men->d5->notification_time_stamp++;
+        }
+        spin_unlock_irqrestore(&men->d5->notification_data_lock, flags);
+        spin_lock(&men->d5->notification_handler_headlock);
+        {
+            list_for_each_entry(handler, &men->d5->notification_handler_heads, node) {
+                complete(&handler->notification_available);
+            }
+        }
+        spin_unlock(&men->d5->notification_handler_headlock);
 
-    men->d5->cleanup_peripherals(men->d5);
+        /* Free DMAs */
+        spin_lock_bh(&men->buffer_heads_lock);
+        {
+            i = men_alloc_dma(men, 0);
+            // head_lock is unlocked inside men_alloc_dma !
+        }
+        BUG_ON(i != 0);
+
+        men->d5->cleanup_peripherals(men->d5);
+    }
 }
 
 static void
@@ -309,7 +318,7 @@ me5_device_reconnected(struct siso_menable* men)
 
 	men->config = men->register_interface.read(&men->register_interface, ME5_CONFIG);
 	men->config_ex = men->register_interface.read(&men->register_interface, ME5_CONFIG_EX);
-
+	
     spin_lock_irqsave(&men->boardlock, flags);
     {
         /* Unflag releasing */
@@ -359,6 +368,53 @@ me5_irq_ack(struct siso_menable *men, unsigned long alarm)
         }
     }
     spin_unlock_irqrestore(&men->d5->notification_data_lock, flags);
+}
+
+static void
+me5_reconfigure_fpga_from_bpi(struct siso_menable* men)
+{
+    /* Ask FPGA to reconfigure itself */
+    men->register_interface.write(&men->register_interface, ME5_RECONFIGURE_CONTROL, RECONFIGURE_FLAG);
+}
+
+static void
+me5_reconfigure_fpga_from_spi(struct siso_menable* men)
+{
+    men->register_interface.write(&men->register_interface, BPI_ADDRESS_REGISTER, SPI_RECONFIGURATION_ADDRESS_WORD);
+    men->register_interface.write(&men->register_interface, BPI_DATA_WRITE_REGISTER, SPI_RECONFIGURATION_DATA_WORD);
+}
+
+static int
+me5_reconfigure_fpga(struct siso_menable* men, FlashMemoryType flashType)
+{
+    /* Handle device removal */
+    me5_device_removed(men);
+
+    /* Save Config Space */
+    int result = pci_save_state(men->pdev);
+
+    printk(KERN_INFO "%s: Reconfiguring board %d\n", DRIVER_NAME, men->idx);
+
+    if (flashType == FLASH_TYPE_BPI) {
+        me5_reconfigure_fpga_from_bpi(men);
+    } else if (flashType == FLASH_TYPE_SPI) {
+        me5_reconfigure_fpga_from_spi(men);
+    } else {
+        dev_err(&men->dev, "Invalid flash memory type.\n");
+        return -EINVAL;
+    }
+
+    // Max. reconfiguration time must be less than 100 ms.
+    // We will wait a bit more.
+    msleep(200);
+
+    /* Restore Config Space */
+    pci_restore_state(men->pdev);
+
+    /* Handle device re-attaching */
+    me5_device_reconnected(men);
+
+    return result;
 }
 
 static int
@@ -464,30 +520,17 @@ me5_ioctl(struct siso_menable *men, const unsigned int cmd,
                     return -EACCES;
                 }
 
-                /* Handle device removal */
-                me5_device_removed(men);
+                result = me5_reconfigure_fpga(men, FLASH_TYPE_BPI);
+                break;
 
-                /* Save Config Space */
-                result = pci_save_state(men->pdev);
+            case DEVCTRL_RECONFIGURE_FPGA_FROM_SPI:
+                /* Check Magic word */
+                if (ctrl.args.reconfigure_fpga.magic
+                        != DEVCTRL_RECONFIGURE_MAGIC) {
+                    return -EACCES;
+                }
 
-                printk(KERN_INFO "%s: Reconfiguring board %d\n", DRIVER_NAME, men->idx);
-
-                /* Ask FPGA to reconfigure itself */
-                men->register_interface.write(&men->register_interface, ME5_RECONFIGURE_CONTROL, RECONFIGURE_FLAG);
-
-                // Max. reconfiguration time must be less than 100 ms.
-                // We will wait a bit more.
-                msleep(200);
-
-                /* Restore Config Space */
-                pci_restore_state(men->pdev);
-
-                /* Re-enable the device */
-                result = pci_enable_device(men->pdev);
-
-                /* Handle device re-attaching */
-                me5_device_reconnected(men);
-
+                result = me5_reconfigure_fpga(men, FLASH_TYPE_SPI);
                 break;
 
             case DEVCTRL_SET_LEDS:
@@ -539,7 +582,11 @@ me5_ioctl(struct siso_menable *men, const unsigned int cmd,
                     if ((!handler->quit_requested)
                             && ((handler->notification_time_stamp == notification_ts) || (!notifications))) {
                         // Wait until a notification is received
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 35)
                         wakeup_time = wait_for_completion_killable_timeout(&handler->notification_available, msecs_to_jiffies(250));
+#else
+                        wakeup_time = wait_for_completion_interruptible_timeout(&handler->notification_available, msecs_to_jiffies(250));
+#endif
                     }
 
                     spin_lock_irqsave(&men->d5->notification_data_lock, flags);
@@ -848,7 +895,7 @@ me5_irq(int irq, void *dev_id)
                         }
                     } else {
                         spin_unlock(&db->listlock);
-                        db->state = MEN_DMA_CHAN_STATE_IN_SHUTDOWN;
+                        db->state = MEN_DMA_CHAN_STATE_STOPPING;
                         schedule_work(&db->dwork);
                     }
                 }
@@ -918,7 +965,7 @@ me5_abortdma(struct siso_menable *men, struct menable_dmachan *dc)
         dmastat = men->register_interface.read(&men->register_interface, dc->iobase + ME5_DMACTRL);
         if ((dmastat & 4) != 0) break;
     }
-
+        
     /* Get DMA engine out of reset and wait for Abort bit to go low */
     men->register_interface.write(&men->register_interface, dc->iobase + ME5_DMACTRL, 0);
     for (retries = 0; retries < 100; ++retries) {
@@ -938,7 +985,7 @@ me5_stopdma(struct siso_menable *men, struct menable_dmachan *dc)
         /* Disable the DMA engine */
         men->register_interface.write(&men->register_interface, dc->iobase + ME5_DMACTRL, 0);
         dmastat = men->register_interface.read(&men->register_interface, dc->iobase + ME5_DMACTRL);
-
+        
         /* Disable DMA interrupt */
         irqreg = men->register_interface.read(&men->register_interface, dc->irqenable);
         irqreg &= ~(1 << dc->enablebit);
@@ -958,7 +1005,7 @@ me5_stopdma(struct siso_menable *men, struct menable_dmachan *dc)
             dmastat = men->register_interface.read(&men->register_interface, dc->iobase + ME5_DMACTRL);
             if ((dmastat & 4) != 0) break;
         }
-
+        
         /* Get DMA engine out of reset and wait for Abort bit to go low */
         men->register_interface.write(&men->register_interface, dc->iobase + ME5_DMACTRL, 0);
         for (retries = 0; retries < 100; ++retries) {
@@ -1390,19 +1437,20 @@ me5_probe(struct siso_menable *men)
     spin_lock_init(&men->d5->notification_data_lock);
     spin_lock_init(&men->d5->notification_handler_headlock);
 
-    if (dma_set_mask(&men->pdev->dev, DMA_BIT_MASK(64))) {
-        dev_err(&men->dev, "Failed to set DMA mask\n");
+    const uint64_t dma_mask = DMA_BIT_MASK(64);
+    if (dma_set_mask_and_coherent(&men->pdev->dev, dma_mask) != 0) {
+        dev_err(&men->dev, "Failed to set DMA mask to 0x%llx.\n", dma_mask);
         goto fail_mask;
     }
-    dma_set_coherent_mask(&men->pdev->dev, DMA_BIT_MASK(64));
+
     men->sgl_dma_pool = dmam_pool_create("me5_sgl", &men->pdev->dev,
-            sizeof(struct me4_sgl), 128, PCI_PAGE_SIZE);
+            sizeof(struct me5_sgl), 128, PCI_PAGE_SIZE);
     if (!men->sgl_dma_pool) {
         dev_err(&men->dev, "Failed to allocate DMA pool\n");
         goto fail_pool;
     }
 
-    men->d5->dummypage = dma_alloc_coherent(&men->pdev->dev, PCI_PAGE_SIZE, &men->d5->dummypage_dma, GFP_ATOMIC);
+    men->d5->dummypage = dma_alloc_coherent(&men->pdev->dev, PCI_PAGE_SIZE, &men->d5->dummypage_dma, GFP_KERNEL);
     if (men->d5->dummypage == NULL) {
         dev_err(&men->dev, "Failed to allocate dummy page\n");
         goto fail_dummy;

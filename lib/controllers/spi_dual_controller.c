@@ -1,5 +1,5 @@
 /************************************************************************
- * Copyright 2006-2020 Silicon Software GmbH, 2021-2022 Basler AG
+ * Copyright 2006-2020 Silicon Software GmbH, 2021-2024 Basler AG
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License (version 2) as
@@ -24,7 +24,6 @@
 #undef DBG_LEVEL
 #define DBG_LEVEL 1
 
-#define DBG_TRACE_ON 1
 #define DBG_NAME "[SPI DUAL CORE] "
 #endif
 

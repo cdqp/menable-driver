@@ -1,5 +1,5 @@
 /************************************************************************
-* Copyright 2006-2020 Silicon Software GmbH, 2021-2022 Basler AG
+* Copyright 2006-2020 Silicon Software GmbH, 2021-2024 Basler AG
 *
 * This program is free software; you can redistribute it and/or modify
 * it under the terms of the GNU General Public License (version 2) as
@@ -194,8 +194,11 @@ do_camera_control(struct siso_menable * men, void __user * user_io_buffer) {
             copy_to_user(user_io_buffer, &ctrl_io, sizeof(ctrl_io));
         } else {
             int status = men->camera_frontend->execute_command(men->camera_frontend, ctrl_io.in.command, &ctrl_io.in.args);
-            if (status != STATUS_OK) {
-                ret = -EFAULT;
+            if(status == STATUS_ERR_INVALID_OPERATION || status == CXP_FRONTEND_ERROR_APPLETDOESNOTSUPPORTTGS){
+            	ret = -EFAULT;
+            }
+            else if (status != STATUS_OK) {
+                ret = -ENODEV;
             }
         }
     }
@@ -408,11 +411,12 @@ static int men_queue_buffer(struct siso_menable *men, unsigned int head_idx, uns
 
     if (buf->listname != FREE_LIST) {
         dev_warn(&men->dev, "Attempt to queue buffer that is in %s queue.\n", get_buffer_list_name(buf->listname));
-        goto err_bufheads_locked;
     }
 
     struct menable_dmachan * dma_chan = dma_head->chan;
-    if (dma_chan == NULL) {
+
+    if ((dma_chan == NULL) || (dma_chan->state == MEN_DMA_CHAN_STATE_STOPPED) || (dma_chan->state == MEN_DMA_CHAN_STATE_STOPPING))
+    {
         /* No active acquisition, just mark buffers as being queued */
         buf->listname = READY_LIST;
     } else if (dma_chan->mode != DMA_SELECTIVEMODE) {

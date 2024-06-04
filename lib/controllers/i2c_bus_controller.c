@@ -1,14 +1,29 @@
 /************************************************************************
- * Copyright 2006-2020 Silicon Software GmbH, 2021-2022 Basler AG
+ * Copyright 2006-2020 Silicon Software GmbH, 2021-2024 Basler AG
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License (version 2) as
  * published by the Free Software Foundation.
  */
 
+#ifdef DBG_I2C_BUS
+    #undef MEN_DEBUG
+    #define MEN_DEBUG
+#endif
+
+#ifdef TRACE_I2C_BUS
+    #define DBG_TRACE_ON
+#endif
+
+#include "lib/helpers/dbg.h"
+
+
 #include "i2c_bus_controller.h"
 #include "../os/assert.h"
 #include "../helpers/error_handling.h"
+
+
+#define DBG_PRFX KBUILD_MODNAME "[I2C BUSCTRL]"
 
 static int i2c_begin_transaction(struct controller_base * base) {
     struct i2c_bus_controller * self = downcast(base, struct i2c_bus_controller);
@@ -63,8 +78,12 @@ static void i2c_destroy(struct controller_base * base) {
 int i2c_bus_controller_init(struct i2c_bus_controller * ctrl,
                             struct i2c_master_core * i2c_core,
                             uint8_t bank_number) {
+    pr_debug(DBG_PRFX ": Init bus controller for bank %u.\n", bank_number);
 
-    assert_msg(bank_number < 8, "Invalid bank number\n");
+    if (bank_number > 7) {
+        pr_err(DBG_PRFX ": Init failed. Bank number %u exceeds maximum of 7.", bank_number);
+        return STATUS_ERROR;
+    }
 
     ctrl->i2c_core = i2c_core;
     ctrl->bank_number = bank_number;

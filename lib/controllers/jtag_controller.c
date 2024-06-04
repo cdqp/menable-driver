@@ -1,10 +1,26 @@
 /************************************************************************
- * Copyright 2006-2020 Silicon Software GmbH, 2021-2022 Basler AG
+ * Copyright 2006-2020 Silicon Software GmbH, 2021-2024 Basler AG
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License (version 2) as
  * published by the Free Software Foundation.
  */
+
+/* debugging first */
+#ifdef DBG_JTAG_CTRL
+    #undef MEN_DEBUG
+    #define MEN_DEBUG
+#endif
+
+#ifdef TRACE_JTAG_CTRL
+    #undef DBG_TRACE_ON
+    #define DBG_TRACE_ON
+#endif
+
+#define DBG_NAME "[JTAG]"
+#define DBG_PRFX KBUILD_MODNAME DBG_NAME
+
+#include "../helpers/dbg.h"
 
 
 #include "../controllers/jtag_controller.h"
@@ -16,29 +32,6 @@
 #include <multichar.h>
 
 
-/* debugging */
-#ifdef DBG_JTAG_CTRL
-    #undef DEBUG
-    #define DEBUG
-
-    #undef DBG_LEVEL
-    #define DBG_LEVEL 1
-
-    #define DBG_TRACE_ON 1
-#endif
-
-#ifdef TRACE_JTAG_CTRL
-    #undef DBG_TRACE_OFF
-    #undef DBG_TRACE_ON
-    #undef  DEBUG
-    #define DEBUG
-    #define DBG_TRACE_ON 1
-#endif
-
-#define DBG_NAME "[JTAG]"
-#define DBG_PRFX KBUILD_MODNAME DBG_NAME
-
-#include "../helpers/dbg.h"
 #include "../os/print.h"
 
 #define JTAG_READ_FIFO_LENGTH 1

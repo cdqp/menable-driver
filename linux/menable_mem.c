@@ -1,5 +1,5 @@
 /************************************************************************
-* Copyright 2006-2020 Silicon Software GmbH, 2021-2022 Basler AG
+* Copyright 2006-2020 Silicon Software GmbH, 2021-2024 Basler AG
 *
 * This program is free software; you can redistribute it and/or modify
 * it under the terms of the GNU General Public License (version 2) as
@@ -12,8 +12,30 @@
 #include <linux/sched.h>
 #include "menable.h"
 #include "menable_ioctl.h"
+#include "linux_version.h"
 
 #include "debugging_macros.h"
+
+/* 
+ * The functions `mmap_write_lock` and `mmap_write_unlock` exist in the following kernel versions:
+ *    - 5.4.x with x >= 208
+ *    - 5.8 and above
+ * 
+ * For all other versions we define them ourselves.
+ */
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(5,4,208)) \
+    || (LINUX_VERSION_CODE >= KERNEL_VERSION(5,5,0) && LINUX_VERSION_CODE < KERNEL_VERSION(5,8,0))
+
+static inline void mmap_write_lock(struct mm_struct *mm)
+{
+	down_write(&mm->mmap_sem);
+}
+
+static inline void mmap_write_unlock(struct mm_struct *mm)
+{
+	up_write(&mm->mmap_sem);
+}
+#endif
 
 /**
 * get_page_addresses - get addresses of user pages
@@ -51,10 +73,11 @@ get_page_addresses(unsigned long addr, const size_t length, struct page ***pages
     }
 
     /*
-     * VM_DONTCOPY prevents the buffer from being copied when the process
-     * is forked.
-     */
+    * VM_DONTCOPY prevents the buffer from being copied when the process
+    * is forked.
+    */
     vm_flags_set(vma, VM_DONTCOPY);
+
     runlen = vma->vm_end - vma->vm_start;
     while (runlen < length) {
         vma = find_vma(current->mm, addr + runlen);
@@ -62,7 +85,7 @@ get_page_addresses(unsigned long addr, const size_t length, struct page ***pages
             printk(KERN_ERR "Next VMA not found for buffer");
             ret = -EFAULT;
             goto fail_mem;
-
+            
         }
 
         vm_flags_set(vma, VM_DONTCOPY);
@@ -70,8 +93,30 @@ get_page_addresses(unsigned long addr, const size_t length, struct page ***pages
     }
 
     /* pin the user pages in memory and get the physical addresses */
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 5, 0)
+    /* Kernel 6.5 introduces a new signature to pin_user_pages and drops the last argument */
+    ret = pin_user_pages(addr,
+        len, FOLL_LONGTERM | ((write == 1) ? FOLL_WRITE : 0), *pages); 
+#elif LINUX_VERSION_CODE >= KERNEL_VERSION(5, 6, 0)
+    /* Kernel 5.6 introduces a new function specifically for pinning memory */
     ret = pin_user_pages(addr,
         len, FOLL_LONGTERM | ((write == 1) ? FOLL_WRITE : 0), *pages, NULL);
+#elif LINUX_VERSION_CODE >= KERNEL_VERSION(5, 2, 0)
+    /* Kernel 5.2 introduces FOLL_LONGTERM, allowing memory defragmentation before pinning */
+    ret = get_user_pages(addr,
+        len, FOLL_LONGTERM | ((write == 1) ? FOLL_WRITE : 0), *pages, NULL);
+#elif LINUX_VERSION_CODE >= KERNEL_VERSION(4, 9, 0)
+    /* Kernel 4.9 replaces the force flag with the more genearal gup_flags */
+    ret = get_user_pages(addr,
+        len, (write == 1) ? FOLL_WRITE : 0, *pages, NULL);
+#elif LINUX_VERSION_CODE >= KERNEL_VERSION(4, 6, 0)
+    /* Kernel 4.6 introduces a new signature to get_user_pages and uses current, current->mm implicitly */
+    ret = get_user_pages(addr,
+        len, 0, *pages, NULL);
+#else /* LINUX < 4.6.0 */
+    ret = get_user_pages(current, current->mm, addr,
+        len, write, 0, *pages, NULL);
+#endif
     if (ret < 0) {
         goto fail_mem;
     }
@@ -142,8 +187,10 @@ men_create_userbuf(struct siso_menable *men, struct men_io_range *range)
     if (!dma_buf)
         goto fail_dma_buf;
 
-    /* create a normal linux SG list */
-    dma_buf->sg = kzalloc(num_pages * sizeof(*dma_buf->sg), GFP_KERNEL);
+    /* Alloc and init a normal linux SG list */
+    const size_t scatterlist_size = num_pages * sizeof(*dma_buf->sg);
+    DEV_DBG_BUFS(&men->dev, "Allocate %zu bytes for scatterlist for buffer %ld of head %u.\n", scatterlist_size, range->subnr, range->headnr);
+    dma_buf->sg = vzalloc(scatterlist_size);
     if (!dma_buf->sg)
         goto fail_sg;
     sg_init_table(dma_buf->sg, num_pages);
@@ -170,13 +217,13 @@ men_create_userbuf(struct siso_menable *men, struct men_io_range *range)
 
     vfree(pages);
     pages = NULL;
-
+    
     dma_buf->num_sg_entries = num_pages;
     dma_buf->num_used_sg_entries =
         dma_map_sg(&men->pdev->dev, dma_buf->sg, dma_buf->num_sg_entries, DMA_FROM_DEVICE);
     if (dma_buf->num_used_sg_entries == 0)
         goto fail_map;
-
+        
     dma_buf->index = range->subnr;
     /* this will also free dma_buf->dma_chain on error */
     ret = men->create_buf(men, dma_buf, dummybuf);
@@ -193,7 +240,7 @@ men_create_userbuf(struct siso_menable *men, struct men_io_range *range)
         goto fail_bh;
 
     buf_head->bufs[range->subnr] = dma_buf;
-
+    
     /* now everything is fine. Go and add this buffer to the free list */
     dma_chan = buf_head->chan;
     if (dma_chan != NULL) {
@@ -216,16 +263,24 @@ fail_create:
     dma_unmap_sg(&men->pdev->dev, dma_buf->sg, dma_buf->num_sg_entries, DMA_FROM_DEVICE);
 fail_map:
     for (i = dma_buf->num_sg_entries - 1; i >= 0; i--) {
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 6, 0)
         unpin_user_page(sg_page(dma_buf->sg + i));
+#else
+        put_page(sg_page(dma_buf->sg + i));
+#endif
     }
 fail_dmat:
-    kfree(dma_buf->sg);
+    vfree(dma_buf->sg);
 fail_sg:
     kfree(dma_buf);
 fail_dma_buf:
     if (pages) {
         for (i = num_pages - 1; i >= 0; i--) {
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 6, 0)
             unpin_user_page(pages[i]);
+#else
+            put_page(pages[i]);
+#endif
         }
         vfree(pages);
     }
@@ -243,9 +298,13 @@ men_destroy_sb(struct siso_menable *men, struct menable_dmabuf *sb)
 
     dma_unmap_sg(&men->pdev->dev, sb->sg, sb->num_sg_entries, DMA_FROM_DEVICE);
     for (i = sb->num_sg_entries - 1; i >= 0; i--) {
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 6, 0)
         unpin_user_page(sg_page(sb->sg + i));
+#else
+        put_page(sg_page(sb->sg + i));
+#endif
     }
-    kfree(sb->sg);
+    vfree(sb->sg);
     kfree(sb);
 }
 
@@ -283,8 +342,7 @@ men_free_userbuf(struct siso_menable *men, struct menable_dmahead *db,
 
     spin_lock_irqsave(&dc->chanlock, flags);
     spin_lock(&dc->listlock);
-    if ((dc->state != MEN_DMA_CHAN_STATE_STOPPED) && (dc->state != MEN_DMA_CHAN_STATE_FINISHED) &&
-        (sb->listname == HOT_LIST)) {
+    if ((dc->state != MEN_DMA_CHAN_STATE_STOPPED) && (sb->listname == HOT_LIST)) {
             /* The buffer is active, that means we would have to wait
             * until the board is finished with it. Users problem. */
             spin_unlock(&dc->listlock);
@@ -381,7 +439,7 @@ men_release_buf_head(struct siso_menable *men, struct menable_dmahead *bh)
         unsigned long flags;
 
         spin_lock_irqsave(&bh->chan->chanlock, flags);
-        if (bh->chan->state == MEN_DMA_CHAN_STATE_ACTIVE) {
+        if (bh->chan->state == MEN_DMA_CHAN_STATE_STARTED) {
             r = -EBUSY;
         } else {
             r = 0;

@@ -1,5 +1,5 @@
 /************************************************************************
-* Copyright 2006-2020 Silicon Software GmbH, 2021-2022 Basler AG
+* Copyright 2006-2020 Silicon Software GmbH, 2021-2024 Basler AG
 *
 * This program is free software; you can redistribute it and/or modify
 * it under the terms of the GNU General Public License (version 2) as
@@ -16,9 +16,9 @@
 #undef CONFIG_DYNAMIC_DEBUG
 
 #define DRIVER_NAME "menable"
-#define DRIVER_DESCRIPTION "microEnable 4/5/6 driver"
+#define DRIVER_DESCRIPTION "microEnable 5/6 driver"
 #define DRIVER_VENDOR "Basler AG"
-#define DRIVER_VERSION "5.1.0"
+#define DRIVER_VERSION "5.4.0"
 
 //#define ENABLE_DEBUG_MSG 1
 //#define DEBUG_SGL 1
@@ -32,6 +32,10 @@
 #include <lib/os/linux/pci_config_interface_linux.h>
 #include "menable_uapi.h"
 #include "menable_ioctl.h"
+
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 23)
+#error This driver requires at least kernel 2.6.23
+#endif
 
 /* Maximum number of devices the driver can handle. Only
 * effect is the size of the device number region. Increase
@@ -59,13 +63,6 @@
 #include <linux/bitops.h>
 #include <linux/types.h>
 #include <linux/mutex.h>
-// these includes were from linux_version.h
-//#include <linux/sched.h>
-//#include <linux/signal.h>
-//#include <linux/scatterlist.h>
-//#include <linux/version.h>
-#include <linux/module.h>
-//#include <linux/stat.h>
 
 #include "lib/fpga/menable_register_interface.h"
 #include "lib/uiq/uiq_transfer_state.h"
@@ -90,14 +87,19 @@
 /* currently at most 2 FPGAs implement IRQs */
 #define MAX_FPGAS 2
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 17, 0)
+typedef time_t menable_time_t;
+typedef struct timespec menable_timespec_t;
+#else
 typedef time64_t menable_time_t;
 typedef struct timespec64 menable_timespec_t;
+#endif
 
 void menable_get_ts(menable_timespec_t *ts);
 
 struct men_dma_chain {
     union {
-        struct me4_sgl *pcie4;
+        struct me5_sgl *pcie4;
         struct me6_sgl *pcie6;
     };
     struct men_dma_chain *next;
@@ -140,23 +142,23 @@ struct menable_dma_wait {
 };
 
 enum men_dma_chan_state {
-    MEN_DMA_CHAN_STATE_STOPPED,
-    MEN_DMA_CHAN_STATE_ACTIVE,
-    MEN_DMA_CHAN_STATE_FINISHED,
-    MEN_DMA_CHAN_STATE_IN_SHUTDOWN
+    MEN_DMA_CHAN_STATE_STARTING,
+    MEN_DMA_CHAN_STATE_STARTED,
+    MEN_DMA_CHAN_STATE_STOPPING,
+    MEN_DMA_CHAN_STATE_STOPPED
 };
 
 struct menable_dmachan {
     struct device dev;
     struct siso_menable *parent;
-
+    
     spinlock_t chanlock;            /* lock to protect administrative changes */
     struct menable_dmahead *active; /* active dma_head */
     unsigned char number;           /* number of DMA channel on device */
     unsigned char fpga;             /* FPGA index this channel belongs to */
     unsigned int mode:6;            /* streaming or controlled */
-    unsigned int direction:2;       /* DMA_{TO,FROM]_DEVICE */
-    unsigned int state:2;           /* 0: stopped, 1: active, 2: finished, 3: in shutdown */
+    unsigned int direction:2;       /* PCI_DMA_{TO,FROM]DEVICE */
+    unsigned int state:2;           /* 0: starting, 1: started, 2: stopping, 3: stopped */
     unsigned int ackbit:5;          /* bit in irqack */
     unsigned int enablebit:5;       /* bit in irqenable */
     unsigned int iobase;            /* base address for register space */
@@ -193,6 +195,7 @@ struct menable_uiq;
 struct siso_menable {
     /* kernel stuff */
     struct device dev;
+    struct module *owner;
     struct pci_dev *pdev;
     spinlock_t boardlock;
     struct dma_pool *sgl_dma_pool;
@@ -208,7 +211,6 @@ struct siso_menable {
     /**
      * The number of allocated uiqs.
      *
-     * mE4: constant for FPGA 0 and vary for FPGA 1 depending on the design.
      * mE5: constant, only FPGA 0 is valid
      * mE6: grows when VA events are initialized, only FPGA0 is valid
      */
@@ -235,7 +237,6 @@ struct siso_menable {
     bool releasing;                         /* board is about to be destroyed */
     bool design_changing;                   /* the device is reconfigured and changes it's properties */
     union {
-        struct me4_data *d4;
         struct me5_data *d5;
         struct me6_data *d6;
     };
@@ -348,7 +349,6 @@ struct menable_dmabuf *men_next_blocked(struct siso_menable *men, struct menable
 struct menable_dmabuf *men_last_blocked(struct siso_menable *men, struct menable_dmachan *dc);
 struct menable_dmachan *men_dma_channel(struct siso_menable *men, const unsigned int index);
 
-int me4_probe(struct siso_menable *men);
 int me5_probe(struct siso_menable *men);
 int me6_probe(struct siso_menable *men);
 
@@ -363,7 +363,6 @@ ssize_t men_set_des_name(struct device *dev, struct device_attribute *attr, cons
 
 const struct attribute_group ** me6_init_attribute_groups(struct siso_menable *men);
 const struct attribute_group ** me5_init_attribute_groups(struct siso_menable *men);
-const struct attribute_group ** me4_init_attribute_groups(struct siso_menable *men);
 
 extern struct class *menable_dma_class;
 extern struct device_attribute men_dma_attributes[3];
@@ -377,12 +376,6 @@ static inline const char* get_acqmode_name(int acqmode) {
         case DMA_SELECTIVEMODE : return "selective";
         default                : return "UNKNWON";
     }
-}
-
-static inline int
-is_me4(const struct siso_menable *men)
-{
-    return SisoBoardIsMe4(men->pci_device_id) ? 1 : 0;
 }
 
 static inline int
@@ -434,15 +427,4 @@ rmsr64(const u64 dest, const u64 src, const int h, const int l, const int s)
     return (dest & ~(m >> s)) | ((src & m) >> s);
 }
 
-
-// these defines used to be in linux_version.h
-#define __devinit
-#define __devinitdata
-#define __devexit
-#define __devexit_p(x) x
-#define DEFINE_PCI_DEVICE_TABLE(_table) \
-    struct pci_device_id _table[] __devinitdata
-#define to_delayed_work(_work)  container_of(_work, struct delayed_work, work)
-
 #endif /* MENABLE_H */
-

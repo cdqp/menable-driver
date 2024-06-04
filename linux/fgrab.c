@@ -1,5 +1,5 @@
 /************************************************************************
- * Copyright 2006-2020 Silicon Software GmbH, 2021-2022 Basler AG
+ * Copyright 2006-2020 Silicon Software GmbH, 2021-2024 Basler AG
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License (version 2) as
@@ -62,7 +62,7 @@ fg_start_transfer(struct siso_menable *men, struct fg_ctrl *fgr, const size_t ts
 
 	/* The channel is already running. Don't touch
 	 * any of it's state variables */
-	if (dma_chan->state == MEN_DMA_CHAN_STATE_ACTIVE) {
+	if (dma_chan->state == MEN_DMA_CHAN_STATE_STARTED) {
 		spin_unlock_bh(&men->buffer_heads_lock);
 		return -EBUSY;
 	}
@@ -73,7 +73,7 @@ fg_start_transfer(struct siso_menable *men, struct fg_ctrl *fgr, const size_t ts
 		goto out_err;
 	}
 
-	if (dma_chan->state == MEN_DMA_CHAN_STATE_IN_SHUTDOWN) {
+	if (dma_chan->state == MEN_DMA_CHAN_STATE_STOPPING) {
 		int dma_done_was_cancelled;
 		struct menable_dmahead *new_buf_head;
 
@@ -99,16 +99,11 @@ fg_start_transfer(struct siso_menable *men, struct fg_ctrl *fgr, const size_t ts
 		}
 
 		spin_lock_irqsave(&dma_chan->chanlock, flags);
-		if (dma_done_was_cancelled && (dma_chan->state == MEN_DMA_CHAN_STATE_IN_SHUTDOWN)) {
+		if (dma_done_was_cancelled && (dma_chan->state == MEN_DMA_CHAN_STATE_STOPPING)) {
 			men_dma_clean_sync(dma_chan);
-			if (dma_chan->active) {
-				dma_chan->active->chan = NULL;
-				dma_chan->active = NULL;
-			}
 		}
 
-		if ((dma_chan->state != MEN_DMA_CHAN_STATE_FINISHED)
-		        && (dma_chan->state != MEN_DMA_CHAN_STATE_STOPPED)) {
+		if (dma_chan->state != MEN_DMA_CHAN_STATE_STOPPED) {
 			spin_unlock_irqrestore(&dma_chan->chanlock, flags);
 			spin_unlock_bh(&men->buffer_heads_lock);
 			return -EBUSY;
@@ -145,6 +140,10 @@ fg_start_transfer(struct siso_menable *men, struct fg_ctrl *fgr, const size_t ts
 
 	DEV_DBG_ACQ(&men->dev, "Starting DMA.\n");
 	ret = men_start_dma(dma_chan, buf_head, fgr->start_buf);
+	if(ret < 0)
+	{
+		men_dma_clean_sync(dma_chan);
+	}
 
 	spin_unlock_irqrestore(&dma_chan->chanlock, flags);
 	spin_unlock_bh(&men->buffer_heads_lock);
@@ -165,18 +164,11 @@ men_stop_dma_locked(struct menable_dmachan *dma_chan)
 	if (dma_chan->transfer_todo > 0) {
 		dma_chan->transfer_todo = 0;
 		spin_unlock(&dma_chan->listlock);
-		dma_chan->state = MEN_DMA_CHAN_STATE_IN_SHUTDOWN;
-		dma_chan->parent->stopdma(dma_chan->parent, dma_chan);
+		dma_chan->state = MEN_DMA_CHAN_STATE_STOPPING;
 		schedule_work(&dma_chan->dwork);
 	} else {
 		spin_unlock(&dma_chan->listlock);
 	}
-	/* Delete it here: abort has finished, the device will _not_ touch
-	 * the buffer anymore. Make sure that there are no more references
-	 * on it so we can free it. */
-	if (dma_chan->active)
-		dma_chan->active->chan = NULL;
-	dma_chan->active = NULL;
 }
 
 void
@@ -188,8 +180,9 @@ men_stop_dma(struct menable_dmachan *dc)
 
 	spin_lock_bh(&dc->parent->buffer_heads_lock);
 	spin_lock_irqsave(&dc->chanlock, flags);
-	if (dc->state == MEN_DMA_CHAN_STATE_ACTIVE)
+	if (dc->state == MEN_DMA_CHAN_STATE_STARTED)
 		men_stop_dma_locked(dc);
+
 	spin_unlock_irqrestore(&dc->chanlock, flags);
 	spin_unlock_bh(&dc->parent->buffer_heads_lock);
 }

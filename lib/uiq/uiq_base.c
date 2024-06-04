@@ -1,3 +1,11 @@
+/************************************************************************
+ * Copyright 2021-2024 Basler AG
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License (version 2) as
+ * published by the Free Software Foundation.
+ */
+
 #include "uiq_base.h"
 #include "uiq_defines.h"
 #include "uiq_helper.h"

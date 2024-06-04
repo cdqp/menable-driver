@@ -1,10 +1,18 @@
 /************************************************************************
- * Copyright 2006-2020 Silicon Software GmbH, 2021-2022 Basler AG
+ * Copyright 2006-2020 Silicon Software GmbH, 2021-2024 Basler AG
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License (version 2) as
  * published by the Free Software Foundation.
  */
+
+/* debugging first */
+#ifdef DBG_CTRL_BASE
+    #undef MEN_DEBUG
+    #define MEN_DEBUG
+#endif
+
+#include "../helpers/dbg.h"
 
 #include "controller_base.h"
 
@@ -12,17 +20,6 @@
 
 #include "../helpers/error_handling.h"
 #include "../helpers/helper.h"
-
-#ifdef DBG_CTRL_BASE
-
-    #ifndef DEBUG
-    #define DEBUG
-    #endif
-
-    #define DBG_LEVEL 1
-#endif
-
-#include "../helpers/dbg.h"
 
 #define DBG_NAME "[controller base] "
 #define LOG_PREFIX KBUILD_MODNAME ": " DBG_NAME

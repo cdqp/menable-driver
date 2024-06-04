@@ -1,18 +1,10 @@
 /************************************************************************
- * Copyright 2006-2020 Silicon Software GmbH, 2021-2022 Basler AG
+ * Copyright 2006-2020 Silicon Software GmbH, 2021-2024 Basler AG
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License (version 2) as
  * published by the Free Software Foundation.
  */
-
-#include "messaging_dma_controller.h"
-
-#include <lib/helpers/helper.h>
-#include <lib/helpers/bits.h>
-#include <lib/os/string.h>
-
-#undef DEBUG
 
 #if defined(DBG_MESSAGING_DMA) && !defined(DBG_MESSAGING_DMA_OFF)
 // OFF takes precedence over ON
@@ -20,20 +12,23 @@
     #define DBG_LEVEL 1
 #endif
 
+#ifdef TRACE_MESSAGING_DMA
+    #undef DBG_TRACE_ON
+    #define DBG_TRACE_ON
+#endif
+
 #define OUTPUT_PREFIX KBUILD_MODNAME " [MSG DMA]: "
 
-#ifdef TRACE_MESSAGING_DMA
-    #undef DBG_TRACE_OFF
-    #undef DBG_TRACE_ON
-    #undef  DEBUG
-    #define DEBUG
-    #define DBG_TRACE_ON 1
-#endif
+#include <lib/helpers/dbg.h>
+
+#include "messaging_dma_controller.h"
+
+#include <lib/helpers/helper.h>
+#include <lib/helpers/bits.h>
+#include <lib/os/string.h>
 
 #include <lib/helpers/error_handling.h>
 #include <lib/helpers/memory.h>
-
-#include <lib/helpers/dbg.h>
 
 #define BYTES_PER_PAGE 4096
 #define WORDS_PER_PAGE 1024

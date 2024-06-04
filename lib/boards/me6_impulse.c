@@ -1,5 +1,5 @@
 /************************************************************************
- * Copyright 2006-2020 Silicon Software GmbH, 2021-2022 Basler AG
+ * Copyright 2006-2020 Silicon Software GmbH, 2021-2024 Basler AG
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License (version 2) as
@@ -65,6 +65,29 @@ struct uiq_declaration me6_impulse_cxp_uiq_declaration[ME6_IMPULSE_CXP_NUM_UIQS]
     {.name = "error event rx channel 3",    .type = UIQ_TYPE_READ,      .id = 0x10a, .reg_offs = ME6_REG_IRQ_EVENT_DATA},
     {.name = "event packet rx channel 3",   .type = UIQ_TYPE_READ,      .id = 0x10b, .reg_offs = ME6_REG_IRQ_EVENT_DATA},
     {.name = "control packet tx channel 3", .type = UIQ_TYPE_WRITE_CXP, .id = 0x203, .reg_offs = ME6_IMPULSE_CXP_REG_CMD_DATA_3, .write_burst = 508},
+};
+
+struct uiq_declaration me6_impulse5_cxp_uiq_declaration[ME6_IMPULSE5_CXP_NUM_UIQS] = {
+    {.name = "control packet rx channel 0", .type = UIQ_TYPE_READ,      .id = 0x100, .reg_offs = ME6_REG_IRQ_EVENT_DATA},
+    {.name = "error event rx channel 0",    .type = UIQ_TYPE_READ,      .id = 0x101, .reg_offs = ME6_REG_IRQ_EVENT_DATA},
+    {.name = "event packet rx channel 0",   .type = UIQ_TYPE_READ,      .id = 0x102, .reg_offs = ME6_REG_IRQ_EVENT_DATA},
+    {.name = "control packet tx channel 0", .type = UIQ_TYPE_WRITE_CXP, .id = 0x200, .reg_offs = ME6_IMPULSE_CXP_REG_CMD_DATA_0, .write_burst = 508},
+    {.name = "control packet rx channel 1", .type = UIQ_TYPE_READ,      .id = 0x103, .reg_offs = ME6_REG_IRQ_EVENT_DATA},
+    {.name = "error event rx channel 1",    .type = UIQ_TYPE_READ,      .id = 0x104, .reg_offs = ME6_REG_IRQ_EVENT_DATA},
+    {.name = "event packet rx channel 1",   .type = UIQ_TYPE_READ,      .id = 0x105, .reg_offs = ME6_REG_IRQ_EVENT_DATA},
+    {.name = "control packet tx channel 1", .type = UIQ_TYPE_WRITE_CXP, .id = 0x201, .reg_offs = ME6_IMPULSE_CXP_REG_CMD_DATA_1, .write_burst = 508},
+    {.name = "control packet rx channel 2", .type = UIQ_TYPE_READ,      .id = 0x106, .reg_offs = ME6_REG_IRQ_EVENT_DATA},
+    {.name = "error event rx channel 2",    .type = UIQ_TYPE_READ,      .id = 0x107, .reg_offs = ME6_REG_IRQ_EVENT_DATA},
+    {.name = "event packet rx channel 2",   .type = UIQ_TYPE_READ,      .id = 0x108, .reg_offs = ME6_REG_IRQ_EVENT_DATA},
+    {.name = "control packet tx channel 2", .type = UIQ_TYPE_WRITE_CXP, .id = 0x202, .reg_offs = ME6_IMPULSE_CXP_REG_CMD_DATA_2, .write_burst = 508},
+    {.name = "control packet rx channel 3", .type = UIQ_TYPE_READ,      .id = 0x109, .reg_offs = ME6_REG_IRQ_EVENT_DATA},
+    {.name = "error event rx channel 3",    .type = UIQ_TYPE_READ,      .id = 0x10a, .reg_offs = ME6_REG_IRQ_EVENT_DATA},
+    {.name = "event packet rx channel 3",   .type = UIQ_TYPE_READ,      .id = 0x10b, .reg_offs = ME6_REG_IRQ_EVENT_DATA},
+    {.name = "control packet tx channel 3", .type = UIQ_TYPE_WRITE_CXP, .id = 0x203, .reg_offs = ME6_IMPULSE_CXP_REG_CMD_DATA_3, .write_burst = 508},
+    {.name = "control packet rx channel 4", .type = UIQ_TYPE_READ,      .id = 0x10c, .reg_offs = ME6_REG_IRQ_EVENT_DATA},
+    {.name = "error event rx channel 4",    .type = UIQ_TYPE_READ,      .id = 0x10d, .reg_offs = ME6_REG_IRQ_EVENT_DATA},
+    {.name = "event packet rx channel 4",   .type = UIQ_TYPE_READ,      .id = 0x10e, .reg_offs = ME6_REG_IRQ_EVENT_DATA},
+    {.name = "control packet tx channel 4", .type = UIQ_TYPE_WRITE_CXP, .id = 0x204, .reg_offs = ME6_IMPULSE_CXP_REG_CMD_DATA_4, .write_burst = 508},
 };
 
 struct jtag_declaration me6_impulse_jtag_declaration = {

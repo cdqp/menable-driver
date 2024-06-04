@@ -1,5 +1,5 @@
 /************************************************************************
- * Copyright 2006-2020 Silicon Software GmbH, 2021-2022 Basler AG
+ * Copyright 2006-2020 Silicon Software GmbH, 2021-2024 Basler AG
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License (version 2) as
@@ -32,7 +32,11 @@
 
 #endif /* BITS_PER_LONG > 32 */
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 5, 0)
+typedef struct timespec menable_ioctl_timespec_t;
+#else
 typedef struct __kernel_old_timespec menable_ioctl_timespec_t;
+#endif
 
 struct men_io_range32 {
     uint32_t start;
@@ -304,6 +308,7 @@ enum {
     DEVCTRL_RECONFIGURE_FPGA,
     DEVCTRL_SET_ASYNC_NOTIFY,
     DEVCTRL_ALLOC_VA_EVENTS,
+    DEVCTRL_RECONFIGURE_FPGA_FROM_SPI
 };
 
 enum {

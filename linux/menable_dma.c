@@ -1,5 +1,5 @@
 /************************************************************************
-* Copyright 2006-2020 Silicon Software GmbH, 2021-2022 Basler AG
+* Copyright 2006-2020 Silicon Software GmbH, 2021-2024 Basler AG
 *
 * This program is free software; you can redistribute it and/or modify
 * it under the terms of the GNU General Public License (version 2) as
@@ -13,6 +13,7 @@
 #include <linux/vmalloc.h>
 #include "menable.h"
 #include "menable_ioctl.h"
+#include "linux_version.h"
 #include "sisoboards.h"
 
 struct me_threadgroup *
@@ -218,7 +219,7 @@ men_wait_dmaimg(struct menable_dmachan *dma_chan, int64_t img,
         *foundframe = dma_chan->goodcnt;
         return 0;
     }
-    if (unlikely(dma_chan->state != MEN_DMA_CHAN_STATE_ACTIVE)) {
+    if (unlikely(dma_chan->state != MEN_DMA_CHAN_STATE_STARTED)) {
         spin_unlock_irqrestore(&dma_chan->listlock, flags);
         put_device(dv);
         return -ETIMEDOUT;
@@ -228,7 +229,11 @@ men_wait_dmaimg(struct menable_dmachan *dma_chan, int64_t img,
     spin_unlock_irqrestore(&dma_chan->listlock, flags);
 	
 	timeout_jiffies = msecs_to_jiffies(timeout_msecs);
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 35)
     wait_for_completion_killable_timeout(&waitstr.cpl, timeout_jiffies);
+#else
+    wait_for_completion_interruptible_timeout(&waitstr.cpl, timeout_jiffies);
+#endif
 
     spin_lock_irqsave(&dma_chan->listlock, flags);
     list_del(&waitstr.node);
@@ -265,7 +270,7 @@ men_dma_timeout(struct hrtimer * arg)
     }
 
     dc->parent->abortdma(dc->parent, dc);
-    dc->state = MEN_DMA_CHAN_STATE_FINISHED;
+    dc->state = MEN_DMA_CHAN_STATE_STOPPED;
     spin_lock(&dc->listlock);
     list_for_each_entry(waitstr, &dc->wait_list, node) {
         complete(&waitstr->cpl);
@@ -299,16 +304,17 @@ static struct lock_class_key men_dmatimer_lock;
 * association of a memory buffer.
 *
 * context: IRQ (headlock and chanlock must be locked and released from caller)
-*          the channel must be in state MEN_DMA_CHAN_STATE_IN_SHUTDOWN
+*          the channel must be in state MEN_DMA_CHAN_STATE_STOPPING
 */
 void
 men_dma_clean_sync(struct menable_dmachan *dma_chan)
 {
     struct menable_dma_wait *waitstr;
 
-    BUG_ON(dma_chan->state != MEN_DMA_CHAN_STATE_IN_SHUTDOWN);
+    BUG_ON(dma_chan->state != MEN_DMA_CHAN_STATE_STOPPING);
+    dma_chan->parent->stopdma(dma_chan->parent, dma_chan);
     hrtimer_cancel(&dma_chan->timer);
-    dma_chan->state = MEN_DMA_CHAN_STATE_FINISHED;
+    dma_chan->state = MEN_DMA_CHAN_STATE_STOPPED;
     dma_chan->transfer_todo = 0;
     spin_lock(&dma_chan->listlock);
     list_for_each_entry(waitstr, &dma_chan->wait_list, node) {
@@ -329,7 +335,7 @@ men_dma_done_work(struct work_struct *work)
     spin_lock_bh(&men->buffer_heads_lock);
     spin_lock_irqsave(&dma_chan->chanlock, flags);
     /* the timer might have cancelled everything in the mean time */
-    if (dma_chan->state == MEN_DMA_CHAN_STATE_IN_SHUTDOWN)
+    if (dma_chan->state == MEN_DMA_CHAN_STATE_STOPPING)
         men_dma_clean_sync(dma_chan);
     spin_unlock_irqrestore(&dma_chan->chanlock, flags);
     spin_unlock_bh(&men->buffer_heads_lock);
@@ -660,10 +666,7 @@ men_start_dma(struct menable_dmachan *dma_chan, struct menable_dmahead *dma_head
     ktime_t timeout;
 
     if ((dma_head->chan != NULL) &&
-        (((dma_chan->state != MEN_DMA_CHAN_STATE_FINISHED)
-                && (dma_chan->state != MEN_DMA_CHAN_STATE_STOPPED))
-        ||  ((dma_head->chan->state != MEN_DMA_CHAN_STATE_FINISHED)
-                && (dma_head->chan->state != MEN_DMA_CHAN_STATE_STOPPED)))) {
+        ((dma_chan->state != MEN_DMA_CHAN_STATE_STOPPED) ||  (dma_head->chan->state != MEN_DMA_CHAN_STATE_STOPPED))) {
             return -EBUSY;
     }
 
@@ -671,7 +674,7 @@ men_start_dma(struct menable_dmachan *dma_chan, struct menable_dmahead *dma_head
         dma_chan->active->chan = NULL;
 
     dma_chan->active = dma_head;
-    dma_chan->state = MEN_DMA_CHAN_STATE_ACTIVE;
+    dma_chan->state = MEN_DMA_CHAN_STATE_STARTING;
 
     spin_lock(&dma_chan->listlock);
     men_clean_bh(dma_chan, startbuf);
@@ -683,11 +686,15 @@ men_start_dma(struct menable_dmachan *dma_chan, struct menable_dmahead *dma_head
 
     spin_unlock(&dma_chan->listlock);
     if (ret) {
-        dma_chan->state = MEN_DMA_CHAN_STATE_STOPPED;
+        dma_chan->state = MEN_DMA_CHAN_STATE_STOPPING;
         return ret;
     }
 
     ret = dma_chan->parent->startdma(dma_chan->parent, dma_chan);
+    if (ret) {
+    	dma_chan->state = MEN_DMA_CHAN_STATE_STOPPING;
+        return ret;
+    }
 
     tg = me_get_threadgroup(dma_chan->parent, current->tgid);
     if (likely(tg != NULL)) {
@@ -700,5 +707,8 @@ men_start_dma(struct menable_dmachan *dma_chan, struct menable_dmahead *dma_head
         hrtimer_start(&dma_chan->timer, timeout, HRTIMER_MODE_REL);
         spin_unlock(&dma_chan->timerlock);
     }
+
+    dma_chan->state = MEN_DMA_CHAN_STATE_STARTED;
+
     return ret;
 }

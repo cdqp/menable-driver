@@ -1,5 +1,5 @@
 /************************************************************************
- * Copyright 2006-2020 Silicon Software GmbH, 2021-2022 Basler AG
+ * Copyright 2006-2020 Silicon Software GmbH, 2021-2024 Basler AG
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License (version 2) as
@@ -32,6 +32,7 @@ enum me6_irq_index {
     ME6_IRQ_DMA_1_INDEX,
     ME6_IRQ_DMA_2_INDEX,
     ME6_IRQ_DMA_3_INDEX,
+    ME6_IRQ_DMA_4_INDEX,    
     ME6_NUM_IRQS
 };
 

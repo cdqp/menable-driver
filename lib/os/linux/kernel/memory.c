@@ -1,5 +1,5 @@
 /************************************************************************
-* Copyright 2006-2020 Silicon Software GmbH, 2021-2022 Basler AG
+* Copyright 2006-2020 Silicon Software GmbH, 2021-2024 Basler AG
 *
 * This program is free software; you can redistribute it and/or modify
 * it under the terms of the GNU General Public License (version 2) as
@@ -21,7 +21,7 @@ void * alloc_pageable_cacheable_small_zeros(size_t size, uint32_t tag) {
 }
 
 void free_pageable_cacheable_small(void * mem, uint32_t tag) {
-    vfree(mem);
+    free_pageable_cacheable_small(mem, tag);
 }
 
 void * alloc_pageable_cacheable_large(size_t size, uint32_t tag) {

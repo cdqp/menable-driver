@@ -1,10 +1,24 @@
 /************************************************************************
- * Copyright 2006-2020 Silicon Software GmbH, 2021-2022 Basler AG
+ * Copyright 2006-2020 Silicon Software GmbH, 2021-2024 Basler AG
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License (version 2) as
  * published by the Free Software Foundation.
  */
+
+/* debugging first! */
+#ifdef DBG_I2C_MASTER_CORE
+    #undef MEN_DEBUG
+    #define MEN_DEBUG
+#endif
+
+#ifdef TRACE_I2C_MASTER_CORE
+    #define DBG_TRACE_ON
+#endif
+
+#define DBG_NAME "[I2C CORE] "
+#define DBG_PRFX KBUILD_MODNAME " " DBG_NAME
+#include "../helpers/dbg.h"
 
 
 #include "../controllers/i2c_master_core.h"
@@ -96,23 +110,6 @@ enum i2c_core_reg_access_direction {
     CORE_REG_WRITE
 };
 
-/* debugging */
-#ifdef DBG_I2C_MASTER_CORE_OFF
-    // OFF takes precedence over ON
-    #undef DEBUG
-#elif defined(DBG_I2C_MASTER_CORE)
-    // Debugging for this component is explicitly turned on -> enable debug and trace output.
-    #undef DEBUG
-    #define DEBUG
-
-    #undef DBG_LEVEL
-    #define DBG_LEVEL 1
-
-    #define DBG_TRACE_ON 1
-#endif
-
-#define DBG_NAME "[I2C CORE] "
-#include "../helpers/dbg.h"
 #include "../os/print.h"
 
 static const char * get_register_name(uint8_t address, enum i2c_core_reg_access_direction direction) {
@@ -231,22 +228,26 @@ static void safe_write(struct i2c_master_core * self,
  */
 static void activate_i2c_core_on_bank(struct i2c_master_core * self, bool activate) {
     DBG_TRACE_BEGIN_FCT;
-    assert_msg(self->active_bus != NULL, "No active bus\n");
 
-    //if (self->active_bus->bank_activation_bit) {
-    //    pr_info("menable: " DBG_NAME " bank activation required. Write activation bit 0x%02x to i2c control register.\n", self->active_bus->bank_activation_bit);
-    //    struct register_interface * ri = upcast(self)->register_interface;
-    //    ri->reorder_barrier(ri);
-    //    ri->write(ri, self->i2c_ctrl_address_register,
-    //              activate ? self->active_bus->bank_activation_bit : 0);
-    //}
+    if (self->active_bus == NULL) {
+        pr_err(DBG_PRFX "Cannot activate core. No active bus.");
+    }
+
+    if (self->active_bus->bank_activation_bit) {
+        pr_err("*********** menable: " DBG_NAME " bank activation required. Write activation bit 0x%02x to i2c control register.\n", self->active_bus->bank_activation_bit);
+        struct register_interface * ri = upcast(self)->register_interface;
+        ri->reorder_barrier(ri);
+        ri->write(ri, self->i2c_ctrl_address_register, activate ? self->active_bus->bank_activation_bit : 0);
+    }
     DBG_TRACE_END_FCT;
 }
 
 static void write_core_register(struct i2c_master_core * self, uint8_t address, uint8_t value) {
     DBG_TRACE_BEGIN_FCT;
-    assert_msg(address != I2C_MC_REG_TRANSMIT || self->active_bus != NULL,
-               "data transmission without an active bus\n");
+
+    if (address == I2C_MC_REG_TRANSMIT && self->active_bus == NULL) {
+        pr_err(DBG_PRFX " Attempted data transmission without an active bus\n");
+    }
 
     uint8_t additional_control_bits = 0;
     if (self->active_bus != NULL) {
@@ -278,8 +279,9 @@ static void write_core_register(struct i2c_master_core * self, uint8_t address, 
 
 static uint8_t read_core_register(struct i2c_master_core * self, uint8_t address) {
     DBG_TRACE_BEGIN_FCT;
-    assert_msg(address != I2C_MC_REG_RECEIVE || self->active_bus != NULL,
-               "data transmission without an active bus\n");
+    if (address == I2C_MC_REG_RECEIVE && self->active_bus == NULL) {
+        pr_err(DBG_PRFX " Attempted data reception without an active bus\n");
+    }
 
     uint8_t additional_control_bits = 0;
     if (self->active_bus != NULL) {
@@ -329,15 +331,20 @@ static uint8_t get_core_status(struct i2c_master_core * self) {
 
     uint8_t status = read_core_register(self, I2C_MC_REG_STATUS);
     /* These bits should always be zero. If they aren't, it's an error */
-    assert_msg((status & I2C_MC_STATUS_MASK_UNUSED_BITS) == 0,
-               "invalid status register value\n");
+    if ((status & I2C_MC_STATUS_MASK_UNUSED_BITS) != 0) {
+        pr_err(DBG_PRFX "invalid status register value: 0x%x (disallowed bits: 0x%x)\n", status, I2C_MC_STATUS_MASK_UNUSED_BITS);
+    }
+
     DBG_TRACE_END_FCT;
     return status;
 }
 
 static bool has_slave_acknowledged(struct i2c_master_core * self) {
     DBG_TRACE_BEGIN_FCT;
-    assert(self->active_bus != NULL);
+
+    if (self->active_bus == NULL) {
+        pr_err(DBG_PRFX "Cannot check slave acknowledge. No active bus.");
+    }
 
     uint8_t status = get_core_status(self);
     DBG_STMT(pr_debug("menable: " DBG_NAME " has slave acknowledged: %s\n",
@@ -374,7 +381,10 @@ static uint8_t wait_for_core_status(struct i2c_master_core * self, uint8_t statu
 
 static int wait_for_transfer_complete(struct i2c_master_core * self) {
     DBG_TRACE_BEGIN_FCT;
-    assert(self->active_bus != NULL);
+
+    if (self->active_bus == NULL) {
+        pr_err(DBG_PRFX "Cannot wait for transfer completion. No active bus.");
+    }
 
     uint8_t status = wait_for_core_status(self, I2C_MC_STATUS_MASK_TRANSFER_STATUS,
                                           I2C_MC_STATUS_TRANSFER_COMPLETE,
@@ -393,8 +403,10 @@ static int wait_for_transfer_complete(struct i2c_master_core * self) {
 
 static int write_stop(struct i2c_master_core * self) {
     DBG_TRACE_BEGIN_FCT;
-    assert(self->active_bus != NULL);
 
+    if (self->active_bus == NULL) {
+        pr_err(DBG_PRFX "Cannot write stop. No active bus.");
+    }
     write_core_register(self, I2C_MC_REG_COMMAND, I2C_COMMAND_STOP);
     uint8_t status = wait_for_core_status(self, I2C_MC_STATUS_MASK_BUS_STATUS, I2C_MC_STATUS_BUS_IDLE, 100);
 
@@ -414,7 +426,9 @@ static int write_byte(struct i2c_master_core * self, uint8_t byte, enum i2c_core
     struct controller_base * ctrl = upcast(self);
     
     DBG_TRACE_BEGIN_FCT;
-    assert(self->active_bus != NULL);
+    if (self->active_bus == NULL) {
+        pr_err(DBG_PRFX "Cannot write byte. No active bus.");
+    }
 
     DBG_STMT(pr_debug("menable: " DBG_NAME "write byte: 0x%02x (bin)%s, commands: %s\n",
                  byte, to_binary_8(byte), get_command_names(cmd)));
@@ -439,7 +453,10 @@ static int write_byte(struct i2c_master_core * self, uint8_t byte, enum i2c_core
 
 static int read_byte(struct i2c_master_core * self, uint8_t * out_byte, enum i2c_core_command cmd) {
     DBG_TRACE_BEGIN_FCT;
-    assert(self->active_bus != NULL);
+
+    if (self->active_bus == NULL) {
+        pr_err(DBG_PRFX "Cannot read byte. No active bus.");
+    }
 
     DBG_STMT(pr_debug("menable: " DBG_NAME "read byte, commands: %s\n", get_command_names(cmd)));
     write_core_register(self, I2C_MC_REG_COMMAND, I2C_COMMAND_READ | cmd);
@@ -493,7 +510,10 @@ static int write_shot(struct controller_base * ctrl, const uint8_t * buf, int nu
     DBG1(if (ctrl->is_first_shot) pr_debug("menable: " DBG_NAME "   ** first shot\n"));
     DBG1(if (ctrl->is_last_shot) pr_debug("menable: " DBG_NAME "   ** last shot\n"));
     struct i2c_master_core * self = downcast(ctrl, struct i2c_master_core);
-    assert(num_bytes == 1);
+
+    if (num_bytes != 1) {
+        pr_err(DBG_PRFX "Write shot with %d bytes, but only one byte allowed.\n", num_bytes);
+    }
 
     DBG_STMT(read_core_register(self, I2C_MC_REG_STATUS));
 
@@ -514,7 +534,10 @@ static int write_shot(struct controller_base * ctrl, const uint8_t * buf, int nu
 }
 
 static int request_read(struct controller_base * ctrl, size_t num_bytes) {
-    assert(num_bytes == 1);
+    if (num_bytes != 1) {
+        pr_err(DBG_PRFX "Read request with %zu bytes, but only one byte allowed.\n", num_bytes);
+    }
+
     /* nop */
     return STATUS_OK;
 }
@@ -524,7 +547,10 @@ static int read_shot(struct controller_base * ctrl, uint8_t * buffer, size_t num
     DBG1(if (ctrl->is_first_shot) pr_debug("menable: " DBG_NAME "   ** first shot\n"));
     DBG1(if (ctrl->is_last_shot) pr_debug("menable: " DBG_NAME "   ** last shot\n"));
     struct i2c_master_core * self = downcast(ctrl, struct i2c_master_core);
-    assert(num_bytes == 1);
+
+    if (num_bytes != 1) {
+        pr_err(DBG_PRFX "Read shot with %zu bytes, but only one byte allowed.\n", num_bytes);
+    }
 
     /* The last read shot has to send a NACK and possibly a stop condition */
     uint8_t i2c_cmd = I2C_COMMAND_NONE;
@@ -566,8 +592,9 @@ static bool is_core_enabled(struct i2c_master_core * self) {
     DBG_TRACE_BEGIN_FCT;
 
     uint8_t ctrl = read_core_register(self, I2C_MC_REG_CONTROL);
-    assert_msg((ctrl & CORE_CTRL_MASK_UNUSED_BITS) == 0,
-               "Control Register is invalid\n");
+    if ((ctrl & CORE_CTRL_MASK_UNUSED_BITS) != 0) {
+        pr_err(DBG_PRFX "Control register contains invalid value: 0x%x (disallowed bits: 0x%x\n", ctrl, CORE_CTRL_MASK_UNUSED_BITS);
+    }
 
     DBG_TRACE_END_FCT;
     return ((ctrl & CORE_CTRL_MASK_ENABLE) == CORE_CTRL_ENABLED);
@@ -612,14 +639,30 @@ static int disable_core(struct i2c_master_core * self) {
     return STATUS_OK;
 }
 
+static uint32_t frequency_bus2core(uint32_t bus_frequency, uint32_t fw_clock_frequency)
+{
+    return (fw_clock_frequency / (5 * bus_frequency)) - 1;
+}
+
+static uint32_t frequency_core2bus(uint32_t core_frequency, uint32_t fw_clock_frequency)
+{
+    return fw_clock_frequency / (5 * (core_frequency + 1));
+}
+
 static int adjust_core_frequency(struct i2c_master_core * self, uint32_t bus_frequency) {
     DBG_TRACE_BEGIN_FCT;
-    assert(self->active_bus != NULL);
+
+    if (self->active_bus == NULL) {
+        pr_err(DBG_PRFX "Cannot adjust core frequency. No active bus.");
+    }
+
     uint32_t core_freq = (self->firmware_clock_frequency / (5 * bus_frequency)) - 1;
     DBG_STMT(pr_debug("menable: " DBG_NAME "adjust core prescaler to 0x%04x (fpga: %dHz, bus: %dHz)\n",
                  core_freq, self->firmware_clock_frequency, bus_frequency));
+    if (core_freq >= 0x10000) {
+        pr_err(DBG_PRFX "Cannot adjust core frequency to %u. Frequency too high\n", bus_frequency);
+    }
 
-    assert_msg(core_freq < 0x10000, "Frequency too high\n");
     write_core_register(self, I2C_MC_REG_PRESCALE_LOW, core_freq & 0xFF);
     write_core_register(self, I2C_MC_REG_PRESCALE_HIGH, (core_freq >> 8) & 0xFF);
 
@@ -627,7 +670,10 @@ static int adjust_core_frequency(struct i2c_master_core * self, uint32_t bus_fre
     uint32_t new_core_freq = (uint16_t) read_core_register(self, I2C_MC_REG_PRESCALE_LOW)
                              | (uint16_t) read_core_register(self, I2C_MC_REG_PRESCALE_HIGH) << 8;
 
-    assert_msg(new_core_freq == core_freq, "Failed to set core frequency\n");
+    if (new_core_freq != core_freq) {
+        pr_err(DBG_PRFX "Failed to set core frequency to %u (%u Hz). Board reports %u (%u Hz)\n",
+               core_freq, bus_frequency, new_core_freq, frequency_core2bus(new_core_freq, self->firmware_clock_frequency));
+    }
 
     DBG_TRACE_END_FCT;
     return (new_core_freq == core_freq) ? STATUS_OK : STATUS_ERROR;
@@ -635,8 +681,11 @@ static int adjust_core_frequency(struct i2c_master_core * self, uint32_t bus_fre
 
 static void activate_bank(struct i2c_master_core * self, uint8_t bank_number) {
     DBG_TRACE_BEGIN_FCT;
-    assert_msg(self->bus_configurations[bank_number].bus_frequency != 0,
-               "switch to uninitialized bank\n");
+
+    if (self->bus_configurations[bank_number].bus_frequency == 0) {
+        pr_err(DBG_PRFX "Attempt to activate uninitialized bank\n");
+
+    }
 
     /* only reconfigure if the bank is not already active */
     if (self->active_bus != &self->bus_configurations[bank_number]) {
@@ -719,7 +768,10 @@ int i2c_master_core_configure_bus(struct i2c_master_core * core,
                                   uint8_t write_enable_bitmask,
                                   uint32_t bus_frequency) {
     DBG_TRACE_BEGIN_FCT;
-    assert_msg(bank_number < 8, "Invalid bank number\n");
+
+    if (bank_number >= 8) {
+        pr_err(DBG_PRFX "Attempt to configure i2c master core with invalid bank number %u\n", bank_number);
+    }
 
     struct i2c_master_core_bus_cfg * cfg = &core->bus_configurations[bank_number];
     cfg->bank_number = bank_number;

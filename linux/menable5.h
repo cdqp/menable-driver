@@ -1,5 +1,5 @@
 /************************************************************************
- * Copyright 2006-2020 Silicon Software GmbH, 2021-2022 Basler AG
+ * Copyright 2006-2020 Silicon Software GmbH, 2021-2024 Basler AG
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License (version 2) as
@@ -99,9 +99,31 @@
 #define NOTIFICATION_DEVICE_ADDED   0x04    // Fired when a new device is added
 #define NOTIFICATION_DEVICE_ALARM   0x08    // Fired when a notification IRQ is received
 
+#define BPI_ADDRESS_REGISTER    0x1003
+#define BPI_DATA_WRITE_REGISTER 0x1004
+
+/* The Marathon boards exist in two variants with different flash memory chips */
+typedef enum
+{
+    FLASH_TYPE_BPI,
+    FLASH_TYPE_SPI
+} FlashMemoryType;
+
+/*
+ * These defines are used for reconfigurating a board with SPI flash memory
+ * over the BPI Firmware interface.
+ */
+#define SPI_RECONFIGURATION_ADDRESS_WORD BIT(21)
+#define SPI_RECONFIGURATION_DATA_WORD    0x1E0000
+
 struct menable_uiq;
 
 extern struct class *menable_notify_class;
+
+struct me5_sgl {
+	__le64 addr[7];
+	__le64 next;
+} __attribute__ ((packed));
 
 struct me5_data {
     struct siso_menable * men;

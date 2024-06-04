@@ -1,5 +1,5 @@
 /************************************************************************
-* Copyright 2006-2020 Silicon Software GmbH, 2021-2022 Basler AG
+* Copyright 2006-2020 Silicon Software GmbH, 2021-2024 Basler AG
 *
 * This program is free software; you can redistribute it and/or modify
 * it under the terms of the GNU General Public License (version 2) as
@@ -38,6 +38,7 @@
 #include "sisoboards.h"
 #include "uiq.h"
 
+#include "linux_version.h"
 #include "debugging_macros.h"
 
 #define ME6_MAX_UIQS 64
@@ -511,7 +512,11 @@ me6_ioctl(struct siso_menable *men, const unsigned int cmd,
                     if ((!handler->quit_requested)
                             && ((handler->notification_time_stamp == notifications_ts) || (!notifications))) {
                         // Wait until a notification is received
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 35)
                         wakeup_time = wait_for_completion_killable_timeout(&handler->notification_available, msecs_to_jiffies(250));
+#else
+                        wakeup_time = wait_for_completion_interruptible_timeout(&handler->notification_available, msecs_to_jiffies(250));
+#endif
                     }
 
                     spin_lock_irqsave(&men->d6->notification_data_lock, flags);
@@ -945,7 +950,7 @@ me6_dma_irq(struct siso_menable *men, int dma_idx, menable_timespec_t *ts, bool 
                         DEV_DBG_ACQ(&men->dev, "Received frame number %llu.", sb->frame_number);
                     }
                 }
-
+                
                 /* At this point the buffer we just received is ready to use by the user application.
                  * We release the lock so the user has a chance to pick up the frame and/or unlock
                  * a buffer (if in blocking mode) before we continue. */
@@ -958,10 +963,10 @@ me6_dma_irq(struct siso_menable *men, int dma_idx, menable_timespec_t *ts, bool 
                 if (waiting->frame <= dc->goodcnt)
                     complete(&waiting->cpl);
             }
-
+            
             /* TODO: [RKN] We could release the listlock here for a moment to allow
              *             unlocking of a buffer to reduce the risk of losing a frame
-             *             in the dummy buffer. Should we do this? Or should we keep the
+             *             in the dummy buffer. Should we do this? Or should we keep the 
              *             irq handler as fast as possible? */
 
             DEV_DBG_ACQ(&men->dev, "Frames remaining: %llu.", dc->transfer_todo);
@@ -986,7 +991,7 @@ me6_dma_irq(struct siso_menable *men, int dma_idx, menable_timespec_t *ts, bool 
                 }
             } else {
                 spin_unlock(&dc->listlock);
-                dc->state = MEN_DMA_CHAN_STATE_IN_SHUTDOWN;
+                dc->state = MEN_DMA_CHAN_STATE_STOPPING;
                 schedule_work(&dc->dwork);
             }
 
@@ -1043,6 +1048,7 @@ me6_irq_dispatch(struct siso_menable *men, enum me6_irq_index irq_idx)
     case ME6_IRQ_DMA_1_INDEX:
     case ME6_IRQ_DMA_2_INDEX:
     case ME6_IRQ_DMA_3_INDEX:
+    case ME6_IRQ_DMA_4_INDEX:
         {
             bool have_ts = false;
             menable_timespec_t ts;
@@ -1632,9 +1638,10 @@ me6_probe(struct siso_menable *men)
 
     /* Basic Setup */
 
-    ret = dma_set_mask_and_coherent(men->dev.parent, DMA_BIT_MASK(64));
+    const uint64_t dma_mask = DMA_BIT_MASK(64);
+    ret = dma_set_mask_and_coherent(&men->pdev->dev, dma_mask);
     if (ret != 0) {
-        dev_err(&men->dev, "failed to set DMA mask\n");
+        dev_err(&men->dev, "failed to set DMA mask to 0x%llx\n", dma_mask);
         goto fail_mask;
     }
 

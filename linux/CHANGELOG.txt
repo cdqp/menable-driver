@@ -4,15 +4,15 @@ Linux Driver Changelog
 COMPATIBILITY NOTICE FOR LINUX KERNELS 4.5 OR NEWER:
 The Linux Kernel starting with version 4.5 allows a stricter management of
 PCI resources via setting CONFIG_IO_STRICT_DEVMEM.
-Silicon Software Runtime versions older than 5.8 will not work when this
-setting is enabled. This is a known issue on some Linux distributions. To
-work-around this issue, please boot the linux kernel with option iomem=relaxed,
-or recompile the kernel with CONFIG_IO_STRICT_DEVMEM=n.
+Basler Frame Grabber SDK versions (formerly known as Silicon Software Runtime) 
+older than 5.8 will not work when this setting is enabled. This is a known issue
+on some Linux distributions. To work-around this issue, please boot the 
+linux kernel with option iomem=relaxed, or recompile the kernel with CONFIG_IO_STRICT_DEVMEM=n.
 
 COMPATIBILITY NOTICE FOR UEFI SECURE BOOT:
 If you install Linux on an UEFI machine using the Secure Boot option enabled
 in the UEFI settings, drivers might need to be signed. Currently, the
-Silicon Software Linux driver does not support signing during the build
+Basler Linux driver does not support signing during the build
 process. Signing requires for the user to create a certificate, sign the
 driver using the certificate and install the certificate into the UEFI
 certificate store. There are several how-tos to be found online, if you
@@ -24,6 +24,32 @@ When you install the driver on modern Linux distributions you may ancounter
 error messages referring to driver signing. You can safely ignore those
 error messages if the UEFI Secure Boot feature is disabled in your mainboard
 settings.
+
+Version 5.4.0
+-------------
+- Driver can be compiled for Kernel > 6.3.0
+- Support for new frame grabber iF-CXP12-Q
+- Removed support for me4 and me5 ironman
+- me6: Applet check for stream id configurability now uses a blacklist, so that newer boards are implicitly
+       considered to provide this feature unless it is added to the blacklist.
+
+Version 5.3.0
+-------------
+- Harmonized DMA state machine with windows as far as possible
+- Added error handling in case starting the DMA engine fails
+- Fixed stopping the DMA engine when acquisition was stopped due to autostop
+- me5: Added Device Control command to reconfigure Marathon boards with SPI flash memory
+- me5: Fixed a potential deadlock if reconfiguration failed prior to driver unload
+- me5: Minor fixes and improvements in reconfiguration procedure
+
+Version 5.2.0
+-------------
+- Compilable with Kernel >= 5.19
+- Allow larger image buffers
+- Fixed issue which caused wrong setting for FG_DIGIO_INPUT when configuring GPIO
+- Interface Cards and imaWorx only:
+   - Support for Stream ID configuration for using camera with 1X-2YE tap sorting
+   - Power over CXP state is never changed by the driver unless requested by the user application
 
 Version 5.1.0
 -------------

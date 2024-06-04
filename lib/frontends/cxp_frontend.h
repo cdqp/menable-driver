@@ -1,5 +1,5 @@
 /************************************************************************
- * Copyright 2006-2020 Silicon Software GmbH, 2021-2022 Basler AG
+ * Copyright 2006-2020 Silicon Software GmbH, 2021-2024 Basler AG
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License (version 2) as
@@ -25,7 +25,7 @@ extern "C" {
 /* forward declaration for typedefs */
 struct register_interface;
 
-#define CXP_MAX_NUM_PORTS 4
+#define CXP_MAX_NUM_PORTS 5
 
 #define CXP_FLAGS_SUPPORTS_IDLE_VIOLATION_FIX 0x1
 
@@ -51,7 +51,7 @@ struct cxp_port
     short stream_id_cache;
 };
 
-struct cxp_frontend
+typedef struct cxp_frontend
 {
     DERIVE_FROM(camera_frontend);
 
@@ -118,17 +118,17 @@ struct cxp_frontend
      * Set  stream id and image number.
      */
     int (*set_port_image_stream_id)(struct cxp_frontend* self, uint32_t master_port, short stream_id);
-};
+} cxp_frontend;
 
 #define CXP_FRONTEND_ERROR_INVALID_PORT (-1)
 #define CXP_FRONTEND_ERROR_INVALID_PARAMETER (-2)
 #define CXP_FRONTEND_ERROR_TIMEOUT (-3)
-#define CXP_FRONTEND_ERROR_TGSNOTSUPPORTED (-4)
+#define CXP_FRONTEND_ERROR_APPLETDOESNOTSUPPORTTGS (-4)
 
 /**
  * Constructor.
  */
-struct cxp_frontend * cxp_frontend_alloc_and_init(struct register_interface* ri, unsigned int num_ports, int support_idle_violation_fix);
+cxp_frontend * cxp_frontend_alloc_and_init(struct register_interface* ri, unsigned int num_ports, int support_idle_violation_fix);
 
 #ifdef __cplusplus
 }

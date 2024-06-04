@@ -1,5 +1,5 @@
 /************************************************************************
-* Copyright 2006-2020 Silicon Software GmbH, 2021-2022 Basler AG
+* Copyright 2006-2020 Silicon Software GmbH, 2021-2024 Basler AG
 *
 * This program is free software; you can redistribute it and/or modify
 * it under the terms of the GNU General Public License (version 2) as
@@ -11,8 +11,10 @@
 #include <linux/io.h>
 #include <linux/version.h>
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 1, 0)
 #include <linux/spinlock_types.h>
 #include <asm/cmpxchg.h>
+#endif
 
 #include <asm/cpufeature.h>
 #include <asm/pgtable.h>
@@ -37,9 +39,28 @@
 #include <lib/uiq/uiq_helper.h>
 
 #include "uiq.h"
+#include "linux_version.h"
 #include "sisoboards.h"
 
 static dev_t devr;
+
+struct kobject *kobj_ref;
+int get_menable_info(char *buf)
+{
+	if(buf != NULL)
+		return sprintf(buf, "%-12s:%s\n%-12s:%s\n%-12s:%s\n%-12s:%s %s\n", "VENDOR", DRIVER_VENDOR, "NAME", DRIVER_NAME, "VERSION", DRIVER_VERSION, "BUILD TIME", __TIME__, __DATE__);
+
+	pr_info("VENDOR: %s, NAME: %s, VERSION: %s, BUILD TIME: %s %s\n", DRIVER_VENDOR, DRIVER_NAME, DRIVER_VERSION, __TIME__, __DATE__);
+	return 0;
+}
+
+static ssize_t sysfs_show(struct kobject *kobj, struct kobj_attribute *attr, char *buf)
+{
+	return get_menable_info(buf);
+}
+
+struct kobj_attribute menable_info = __ATTR(info, 0660, sysfs_show, NULL);
+
 
 /*
  * The DEFINE_SPINLOCK macro fails to compile (at least) with gcc 4.8
@@ -53,9 +74,15 @@ static struct lock_class_key men_design_lock;
 static struct lock_class_key men_head_lock;
 static int maxidx;
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 17, 0)
+static inline void _menable_get_ts(menable_timespec_t * ts) {
+    return ktime_get_ts(ts);
+}
+#else
 static inline void _menable_get_ts(menable_timespec_t * ts) {
     return ktime_get_ts64(ts);
 }
+#endif
 
 static menable_time_t timespec_tv_sec_offset;
 
@@ -91,12 +118,8 @@ men_cleanup_threadgroup(struct siso_menable *men, struct me_threadgroup * tg)
         for (i = 0; i < men->dmacnt[j]; i++) {
             if (tg->dmas[j][i] == 1) {
                 dma_chan = men_dma_channel(men, dmaskip + i);
-                if (dma_chan->state == MEN_DMA_CHAN_STATE_ACTIVE) {
+                if (dma_chan->state == MEN_DMA_CHAN_STATE_STARTED) {
                     men_stop_dma_locked(dma_chan);
-                }
-                if (dma_chan->active) {
-                    dma_chan->active->chan = NULL;
-                    dma_chan->active = NULL;
                 }
                 tg->dmas[j][i] = 0;
             }
@@ -121,12 +144,8 @@ men_cleanup_channels(struct siso_menable *men)
         int i;
         for (i = 0; i < men->dmacnt[j]; i++) {
             struct menable_dmachan *dma_chan = men_dma_channel(men, skipdma + i);
-            if (dma_chan->state == MEN_DMA_CHAN_STATE_ACTIVE)
+            if (dma_chan->state == MEN_DMA_CHAN_STATE_STARTED)
                 men_stop_dma_locked(dma_chan);
-            if (dma_chan->active) {
-                dma_chan->active->chan = NULL;
-                dma_chan->active = NULL;
-            }
         }
         skipdma += men->dmacnt[j];
     }
@@ -289,82 +308,71 @@ static const struct file_operations menable_fops = {
 static struct class *menable_class;
 
 static DEFINE_PCI_DEVICE_TABLE(menable_pci_table) = {
-    /* microEnable IV AD1-CL */
-    { PCI_DEVICE(PCI_VENDOR_SISO, 0x0a40), .driver_data = 3 },
-    /* microEnable IV VD1-CL */
-    { PCI_DEVICE(PCI_VENDOR_SISO, 0x0a41), .driver_data = 4 },
-    /* microEnable IV AD4-CL */
-    { PCI_DEVICE(PCI_VENDOR_SISO, 0x0a42), .driver_data = 5 },
-    /* microEnable IV VD4-CL */
-    { PCI_DEVICE(PCI_VENDOR_SISO, 0x0a44), .driver_data = 6 },
-    /* microEnable IV AS1-CL */
-    { PCI_DEVICE(PCI_VENDOR_SISO, 0x0a45), .driver_data = 7 },
-    /* microEnable IV AQ4-GE */
-    { PCI_DEVICE(PCI_VENDOR_SISO, 0x0e42), .driver_data = 8 },
-    /* microEnable IV VQ4-GE */
-    { PCI_DEVICE(PCI_VENDOR_SISO, 0x0e44), .driver_data = 9 },
-    /* microEnable V AQ8-CXP6B */
-    { PCI_DEVICE(PCI_VENDOR_SISO, 0x0a53), .driver_data = 10 },
-    /* microEnable V VQ8-CXP6B */
-    { PCI_DEVICE(PCI_VENDOR_SISO, 0x0a54), .driver_data = 11 },
-    /* microEnable V AD8-CLHS */
-    { PCI_DEVICE(PCI_VENDOR_SISO, 0x0a55), .driver_data = 12 },
-    /* microEnable V VQ8-CXP6D */
-    { PCI_DEVICE(PCI_VENDOR_SISO, 0x0a56), .driver_data = 13 },
-    /* microEnable V AQ8-CXP6D */
-    { PCI_DEVICE(PCI_VENDOR_SISO, 0x0a57), .driver_data = 14 },
-    /* microEnable V VD8-CL */
-    { PCI_DEVICE(PCI_VENDOR_SISO, 0x0a58), .driver_data = 15 },
-    /* microEnable V AD8-CL */
-    { PCI_DEVICE(PCI_VENDOR_SISO, 0x0a5a), .driver_data = 16 },
     /* LightBridge/Marathon VCL */
-    { PCI_DEVICE(PCI_VENDOR_SISO, 0x0751), .driver_data = 18 },
+    { PCI_DEVICE(PCI_VENDOR_SISO, PN_MICROENABLE5_LIGHTBRIDGE_MARATHON_VCL),
+      .driver_data = PN_MICROENABLE5_LIGHTBRIDGE_MARATHON_VCL },
     /* Marathon AF2 */
-    { PCI_DEVICE(PCI_VENDOR_SISO, 0x0752), .driver_data = 19 },
+    { PCI_DEVICE(PCI_VENDOR_SISO, PN_MICROENABLE5_MARATHON_AF2_DP),
+      .driver_data = PN_MICROENABLE5_MARATHON_AF2_DP },
     /* Marathon ACX QP */
-    { PCI_DEVICE(PCI_VENDOR_SISO, 0x0753), .driver_data = 20 },
+    { PCI_DEVICE(PCI_VENDOR_SISO, PN_MICROENABLE5_MARATHON_ACX_QP),
+      .driver_data = PN_MICROENABLE5_MARATHON_ACX_QP },
     /* LightBridge/Marathon ACL */
-    { PCI_DEVICE(PCI_VENDOR_SISO, 0x0754), .driver_data = 21 },
+    { PCI_DEVICE(PCI_VENDOR_SISO, PN_MICROENABLE5_LIGHTBRIDGE_MARATHON_ACL),
+      .driver_data = PN_MICROENABLE5_LIGHTBRIDGE_MARATHON_ACL },
     /* Marathon ACX SP */
-    { PCI_DEVICE(PCI_VENDOR_SISO, 0x0755), .driver_data = 22 },
+    { PCI_DEVICE(PCI_VENDOR_SISO, PN_MICROENABLE5_MARATHON_ACX_SP),
+      .driver_data = PN_MICROENABLE5_MARATHON_ACX_SP },
     /* Marathon ACX DP */
-    { PCI_DEVICE(PCI_VENDOR_SISO, 0x0756), .driver_data = 23 },
+    { PCI_DEVICE(PCI_VENDOR_SISO, PN_MICROENABLE5_MARATHON_ACX_DP),
+      .driver_data = PN_MICROENABLE5_MARATHON_ACX_DP },
     /* Marathon VCX QP */
-    { PCI_DEVICE(PCI_VENDOR_SISO, 0x0757), .driver_data = 24 },
+    { PCI_DEVICE(PCI_VENDOR_SISO, PN_MICROENABLE5_MARATHON_VCX_QP),
+      .driver_data = PN_MICROENABLE5_MARATHON_VCX_QP },
     /* Marathon VF2 */
-    { PCI_DEVICE(PCI_VENDOR_SISO, 0x0758), .driver_data = 25 },
+    { PCI_DEVICE(PCI_VENDOR_SISO, PN_MICROENABLE5_MARATHON_VF2_DP),
+      .driver_data = PN_MICROENABLE5_MARATHON_VF2_DP },
     /* Marathon VCLx */
-    { PCI_DEVICE(PCI_VENDOR_SISO, 0x0759), .driver_data = 26 },
+    { PCI_DEVICE(PCI_VENDOR_SISO, PN_MICROENABLE5_LIGHTBRIDGE_MARATHON_VCLx),
+      .driver_data = PN_MICROENABLE5_LIGHTBRIDGE_MARATHON_VCLx },
     /* Abacus 4G */
-    { PCI_DEVICE(PCI_VENDOR_SISO, 0x0b51), .driver_data = 27 },
+    { PCI_DEVICE(PCI_VENDOR_SISO, PN_MICROENABLE5_ABACUS_4G),
+      .driver_data = PN_MICROENABLE5_ABACUS_4G },
     /* Abacus 4G Base */
-    { PCI_DEVICE(PCI_VENDOR_SISO, 0x0b52), .driver_data = 28 },
+    { PCI_DEVICE(PCI_VENDOR_SISO, PN_MICROENABLE5_ABACUS_4G_BASE),
+      .driver_data = PN_MICROENABLE5_ABACUS_4G_BASE },
     /* Abacus 4G Base II */
-    { PCI_DEVICE(PCI_VENDOR_SISO, 0x0b53), .driver_data = 29 },
-    /* Impulse AF4 */
-    { PCI_DEVICE(PCI_VENDOR_SISO, 0x0a61), .driver_data = 30 },
-    /* Impulse VF4 */
-    { PCI_DEVICE(PCI_VENDOR_SISO, 0x0a62), .driver_data = 31 },
-    /* imaWorx Quad */
-    { PCI_DEVICE(PCI_VENDOR_SISO, 0x0a64), .driver_data = 32 },
-    /* imaFlex Quad */
-    { PCI_DEVICE(PCI_VENDOR_SISO, 0x0a65), .driver_data = 33 },
-    /* Impulse ANBT */
-    { PCI_DEVICE(PCI_VENDOR_SISO, 0x0a66), .driver_data = 34 },
-    /* Impulse VNBT */
-    { PCI_DEVICE(PCI_VENDOR_SISO, 0x0a67), .driver_data = 35 },
+    { PCI_DEVICE(PCI_VENDOR_SISO, PN_MICROENABLE5_ABACUS_4G_BASE_II),
+      .driver_data = PN_MICROENABLE5_ABACUS_4G_BASE_II },
+    /* imaFlex CXP-12 Quad */
+    { PCI_DEVICE(PCI_VENDOR_SISO, PN_MICROENABLE6_IMAFLEX_CXP12_QUAD),
+      .driver_data = PN_MICROENABLE6_IMAFLEX_CXP12_QUAD },
+    /* imaWorx CXP-12 Quad */
+    { PCI_DEVICE(PCI_VENDOR_SISO, PN_MICROENABLE6_IMAWORX_CXP12_QUAD),
+      .driver_data = PN_MICROENABLE6_IMAWORX_CXP12_QUAD },
     /* Abacus 4TG */
-    { PCI_DEVICE(PCI_VENDOR_SISO, 0x0b61), .driver_data = 36 },
+    { PCI_DEVICE(PCI_VENDOR_SISO, PN_MICROENABLE6_ABACUS_4TG),
+      .driver_data = PN_MICROENABLE6_ABACUS_4TG },
     /* CXP12-IC-1C */
-    { PCI_DEVICE(PCI_VENDOR_SISO, 0x0b63), .driver_data = 37 },
+    { PCI_DEVICE(PCI_VENDOR_SISO, PN_MICROENABLE6_CXP12_IC_1C),
+      .driver_data = PN_MICROENABLE6_CXP12_IC_1C },
     /* CXP12-IC-2C */
-    { PCI_DEVICE(PCI_VENDOR_SISO, 0x0b65), .driver_data = 38 },
+    { PCI_DEVICE(PCI_VENDOR_SISO, PN_MICROENABLE6_CXP12_IC_2C),
+      .driver_data = PN_MICROENABLE6_CXP12_IC_2C },
     /* CXP12-IC-4C */
-    { PCI_DEVICE(PCI_VENDOR_SISO, 0x0b64), .driver_data = 39 },
+    { PCI_DEVICE(PCI_VENDOR_SISO, PN_MICROENABLE6_CXP12_IC_4C),
+      .driver_data = PN_MICROENABLE6_CXP12_IC_4C },
     /* CXP12-LB-2C */
-    { PCI_DEVICE(PCI_VENDOR_SISO, 0x0b66), .driver_data = 40 },
-    /* ME6-Elegance-Eco */
-    { PCI_DEVICE(PCI_VENDOR_SISO, 0x0b68), .driver_data = 41 },
+    { PCI_DEVICE(PCI_VENDOR_SISO, PN_MICROENABLE6_CXP12_LB_2C),
+      .driver_data = PN_MICROENABLE6_CXP12_LB_2C },
+#ifdef WITH_PROTOTYPE_FRAMEGRABBERS
+    /* KCU116 */
+    { PCI_DEVICE(PCI_VENDOR_SISO, PN_MICROENABLE6_IMPULSE_KCU116),
+      .driver_data = PN_MICROENABLE6_IMPULSE_KCU116 },
+    /* Impulse CX 5A */    
+    { PCI_DEVICE(PCI_VENDOR_SISO, PN_MICROENABLE6_IMPULSE_CX5A),
+      .driver_data = PN_MICROENABLE6_IMPULSE_CX5A },
+#endif
     /* EOT */
     { 0 },
 };
@@ -384,24 +392,30 @@ static void __devexit menable_pci_remove(struct pci_dev *pdev)
     sysfs_remove_link(&men->dev.kobj, "pci_dev");
 
     spin_lock_bh(&men->buffer_heads_lock);
-    spin_lock_irqsave(&men->designlock, flags);
-    while (men->design_changing) {
-        spin_unlock_irqrestore(&men->designlock, flags);
-        spin_unlock_bh(&men->buffer_heads_lock);
-        schedule();
-        spin_lock_bh(&men->buffer_heads_lock);
+    
+    /* If the last reconfiguration failed, `men->design_changing` may still be true.
+     * In that case, men->releasing is also true, so we check for this flag here
+     * to avoid a deadklock. */
+    if (!men->releasing) {
         spin_lock_irqsave(&men->designlock, flags);
+        while (men->design_changing) {
+            spin_unlock_irqrestore(&men->designlock, flags);
+            spin_unlock_bh(&men->buffer_heads_lock);
+            schedule();
+            spin_lock_bh(&men->buffer_heads_lock);
+            spin_lock_irqsave(&men->designlock, flags);
+        }
+        men->design_changing = true;
+        spin_unlock_irqrestore(&men->designlock, flags);
+
+        spin_lock_irqsave(&men->boardlock, flags);
+        men->stopirq(men);
+        men->releasing = true;
+        spin_unlock_irqrestore(&men->boardlock, flags);
+
+        i = men_alloc_dma(men, 0);
+        BUG_ON(i != 0);
     }
-    men->design_changing = true;
-    spin_unlock_irqrestore(&men->designlock, flags);
-
-    spin_lock_irqsave(&men->boardlock, flags);
-    men->stopirq(men);
-    men->releasing = true;
-    spin_unlock_irqrestore(&men->boardlock, flags);
-
-    i = men_alloc_dma(men, 0);
-    BUG_ON(i != 0);
 
     men_del_uiqs(men, 0);
 
@@ -554,6 +568,11 @@ static int __devinit menable_pci_probe(struct pci_dev *pdev,
         return -ENOMEM;
     }
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 5, 0)
+    men->owner = THIS_MODULE;
+#else
+    men->owner = menable_class->owner;
+#endif
     men->dev.parent = &pdev->dev;
     men->pdev = pdev;
     men->dev.release = menable_obj_release;
@@ -584,6 +603,11 @@ static int __devinit menable_pci_probe(struct pci_dev *pdev,
      * for the device.
      */
     cdev_init(&men->cdev, &menable_fops);
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 5, 0)
+    men->cdev.owner = THIS_MODULE;
+#else
+    men->cdev.owner = men->dev.class->owner;
+#endif
     kobject_set_name(&men->cdev.kobj, "menablec%i", men->idx);
 
     ret = cdev_add(&men->cdev, devr + men->idx, 1);
@@ -598,9 +622,7 @@ static int __devinit menable_pci_probe(struct pci_dev *pdev,
     pci_config_interface_linux_init(&men->config_interface, pdev);
     menable_read_config_space(men);
 
-    if (is_me4(men)) {
-        men->dev.groups = me4_init_attribute_groups(men);
-    } else if (is_me5(men)) {
+    if (is_me5(men)) {
         men->dev.groups = me5_init_attribute_groups(men);
     } else if (is_me6(men)) {
         men->dev.groups = me6_init_attribute_groups(men);
@@ -640,9 +662,7 @@ static int __devinit menable_pci_probe(struct pci_dev *pdev,
 
     mutex_init(&men->camera_frontend_lock);
 
-    if (is_me4(men)) {
-        ret = me4_probe(men);
-    } else if (is_me5(men)) {
+    if (is_me5(men)) {
         ret = me5_probe(men);
     } else if (is_me6(men)) {
         ret = me6_probe(men);
@@ -722,6 +742,8 @@ static struct device_attribute men_device_attributes[3] = {
     __ATTR_NULL,
 };
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 12, 0)
+
 static struct attribute * men_device_attrs[3] = {
     &men_device_attributes[0].attr,
     &men_device_attributes[1].attr,
@@ -748,6 +770,8 @@ static struct attribute * men_uiq_attrs[6] = {
 };
 
 ATTRIBUTE_GROUPS(men_uiq);
+
+#endif /* LINUX >= 3.12.0 */
 
 static void timespec_diff(menable_timespec_t *start, menable_timespec_t *stop,
                    menable_timespec_t *result)
@@ -784,27 +808,39 @@ static int __init menable_init(void)
         return ret;
     }
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 4, 0)
     menable_class = class_create("menable");
+#else
+    menable_class = class_create(THIS_MODULE, "menable");
+#endif
     if (IS_ERR(menable_class)) {
         ret = PTR_ERR(menable_class);
         goto err_class;
     }
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 4, 0)
     menable_uiq_class = class_create("menable_uiq");
+#else
+    menable_uiq_class = class_create(THIS_MODULE, "menable_uiq");
+#endif
     if (IS_ERR(menable_uiq_class)) {
         ret = PTR_ERR(menable_uiq_class);
         goto err_uiq_class;
     }
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 4, 0)
     menable_dma_class = class_create("menable_dma");
+#else
+    menable_dma_class = class_create(THIS_MODULE, "menable_dma");
+#endif;
     if (IS_ERR(menable_dma_class)) {
         ret = PTR_ERR(menable_dma_class);
         goto err_dma_class;
     }
 
-    // Since the IOCTLs use the old struct timespec, make sure we use
-    // a timestamp relative to the start of the driver;
-    // this gives us 2^31 - 1 seconds (~68 years) until overflow
+	// Since the IOCTLs use the old struct timespec, make sure we use
+	// a timestamp relative to the start of the driver;
+	// this gives us 2^31 - 1 seconds (~68 years) until overflow
     menable_timespec_t now;
     menable_get_ts(&now);
     timespec_tv_sec_offset = now.tv_sec;
@@ -827,15 +863,37 @@ static int __init menable_init(void)
     }
     printk(KERN_INFO "%s: frame timestamp resolution is at least %lluns\n", DRIVER_NAME, dns_min);
     
+#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 12, 0)
+    menable_class->dev_attrs = men_device_attributes;
+    menable_uiq_class->dev_attrs = men_uiq_attributes;
+    menable_dma_class->dev_attrs = men_dma_attributes;
+#else /* LINUX < 3.12.0 */
     menable_class->dev_groups = men_device_groups;
     menable_uiq_class->dev_groups = men_uiq_groups;
     menable_dma_class->dev_groups = men_dma_groups;
+#endif /* LINUX < 3.12.0 */
 
     ret = pci_register_driver(&menable_pci_driver);
     if (ret)
         goto err_reg;
 
+    // Write menable info to dmesg
+    get_menable_info(NULL);
+
+    //Creating a directory menable in /sys folder
+     kobj_ref = kobject_create_and_add("menable",NULL);
+
+     //Creating sysfs file for info
+     if(sysfs_create_file(kobj_ref, &menable_info.attr)){
+     	pr_err("Cannot create sysfs file......\n");
+     	goto err_sysfs;
+        }
+
     return 0;
+
+err_sysfs:
+	kobject_put(kobj_ref);
+	sysfs_remove_file(kernel_kobj, &menable_info.attr);
 err_reg:
     class_destroy(menable_dma_class);
 err_dma_class:
@@ -854,6 +912,8 @@ static void __exit menable_exit(void)
     class_destroy(menable_uiq_class);
     class_destroy(menable_class);
     unregister_chrdev_region(devr, MEN_MAX_NUM);
+    kobject_put(kobj_ref);
+    sysfs_remove_file(kernel_kobj, &menable_info.attr);
 
     printk(KERN_INFO  "%s: unloading %s %s\n", DRIVER_NAME, DRIVER_VENDOR, DRIVER_DESCRIPTION);
 }

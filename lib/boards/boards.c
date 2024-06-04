@@ -1,5 +1,5 @@
 /************************************************************************
- * Copyright 2006-2020 Silicon Software GmbH, 2021-2022 Basler AG
+ * Copyright 2006-2020 Silicon Software GmbH, 2021-2024 Basler AG
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License (version 2) as
@@ -13,6 +13,7 @@
 #include "me6_impulse.h"
 #include "me6_elegance.h"
 #include "me6_abacus.h"
+#include "me6_kcu116.h"
 
 unsigned int men_get_uiq_declaration(uint16_t device_id, uiq_declaration ** out_uiq_declaration) {
     switch (device_id) {
@@ -46,6 +47,13 @@ unsigned int men_get_uiq_declaration(uint16_t device_id, uiq_declaration ** out_
         *out_uiq_declaration = me6_elegance_uiq_declaration;
         return ARRAY_SIZE(me6_elegance_uiq_declaration);
 
+    case PN_MICROENABLE6_IMPULSE_CX5A:
+        *out_uiq_declaration = me6_impulse5_cxp_uiq_declaration;
+        return ARRAY_SIZE(me6_impulse5_cxp_uiq_declaration);
+
+    case PN_MICROENABLE6_IMPULSE_KCU116:
+        *out_uiq_declaration = me6_kcu116_uiq_declaration;
+        return ARRAY_SIZE(me6_kcu116_uiq_declaration);
 
     default:
         *out_uiq_declaration = NULL;
@@ -64,6 +72,7 @@ void men_get_messaging_dma_declaration(uint16_t device_id, uint32_t pcieDsnLow, 
     case PN_MICROENABLE6_CXP12_IC_2C:
     case PN_MICROENABLE6_CXP12_IC_4C:
     case PN_MICROENABLE6_CXP12_LB_2C:
+    case PN_MICROENABLE6_IMPULSE_CX5A:	
         *out_messaging_dma_declaration = &me6_impulse_messaging_dma_declaration;
         break;
 
@@ -72,5 +81,10 @@ void men_get_messaging_dma_declaration(uint16_t device_id, uint32_t pcieDsnLow, 
             *out_messaging_dma_declaration = &basler_cxp12_ic_messaging_dma_declaration;
         }
         break;
+
+    case PN_MICROENABLE6_IMPULSE_KCU116:
+        *out_messaging_dma_declaration = &me6_kcu116_messaging_dma_declaration;
+        break;
+
     }
 }

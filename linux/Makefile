@@ -31,6 +31,12 @@ ifeq ($(DRIVER_DIR),)
 	DRIVER_DIR := $(SOURCE_DIR)/..
 endif
 
+# If no SHARED_DIR was specified, define it to the parent directory,
+# to allow to use this variable for copying external headers.
+ifeq ($(SHARED_DIR),)
+	SHARED_DIR := $(SOURCE_DIR)/../../externals/Shared
+endif
+
 # Check if DRIVER_DIR was set via command line and store the information for later usage
 IS_CLI_DRIVER_DIR := $(if $(findstring command line, $(origin DRIVER_DIR)),true,)
 
@@ -46,7 +52,7 @@ ifeq ($(RHEL_MAJOR_VERSION),7)
 	ccflags-y += -DRHEL7
 endif
 
-ccflags-y += -std=gnu99 -Wimplicit-fallthrough=3 -Wno-declaration-after-statement -Wno-unused-function -I"$(libroot)" -I"$(src)"
+ccflags-y += -std=gnu99 -Wimplicit-fallthrough=3 -Wno-declaration-after-statement -Wno-unused-function -I"$(libroot)" -I"$(src)" -Wno-date-time
 
 # debugging flags
 # the -ftree-ter optimization is turned on explicitly to make the build work,
@@ -123,11 +129,11 @@ archive: men_ioctl_codes.h sisoboards.h multichar.h
 men_ioctl_codes.h: $(wildcard $(DRIVER_DIR)/men_ioctl_codes.h)
 	cp $(DRIVER_DIR)/men_ioctl_codes.h .
 
-sisoboards.h: $(wildcard $(DRIVER_DIR)/../Common/SisoBoards/include/sisoboards.h)
-	cp $(DRIVER_DIR)/../Common/SisoBoards/include/sisoboards.h .
+sisoboards.h: $(wildcard $(SHARED_DIR)/Common/SisoBoards/include/sisoboards.h)
+	cp $(SHARED_DIR)/Common/SisoBoards/include/sisoboards.h .
 
-multichar.h: $(wildcard $(DRIVER_DIR)/../Common/CommonFunctions/multichar.h)
-	cp $(DRIVER_DIR)/../Common/CommonFunctions/multichar.h .
+multichar.h: $(wildcard $(SHARED_DIR)/Common/CommonFunctions/multichar.h)
+	cp $(SHARED_DIR)/Common/CommonFunctions/multichar.h .
 
 clean:
 	$(MAKE) -C $(BUILD_DIR) M=$(SOURCE_DIR) clean
