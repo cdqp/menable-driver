@@ -1,5 +1,5 @@
 /************************************************************************
-* Copyright 2006-2020 Silicon Software GmbH, 2021-2024 Basler AG
+* Copyright 2006-2020 Silicon Software GmbH, 2021-2025 Basler AG
 *
 * This program is free software; you can redistribute it and/or modify
 * it under the terms of the GNU General Public License (version 2) as
@@ -85,6 +85,16 @@ struct camera_frontend * camera_frontend_factory(unsigned int boardType, unsigne
 		break;
 	}
 
+	case PN_MICROENABLE6_IMAFLEX_CXP12_PENTA:
+	{
+		struct cxp_frontend * cxp = NULL;
+		cxp = cxp_frontend_alloc_and_init(ri, 5, ME6_IMPULSE_CXP_SUPPORTS_IDLE_VIOLATION_FIX(pcieDsnLow));
+		if (cxp != NULL) {
+			return upcast(cxp);
+		}
+		break;
+	}
+
 	case PN_MICROENABLE6_ELEGANCE_ECO:
 	{
 		struct cxp_frontend * cxp = NULL;
@@ -96,16 +106,6 @@ struct camera_frontend * camera_frontend_factory(unsigned int boardType, unsigne
 		}
 		break;
 	}
-	
-	case PN_MICROENABLE6_IMPULSE_CX5A:
-	{
-		struct cxp_frontend * cxp = NULL;
-		cxp = cxp_frontend_alloc_and_init(ri, 5, ME6_IMPULSE_CXP_SUPPORTS_IDLE_VIOLATION_FIX(pcieDsnLow));
-		if (cxp != NULL) {
-			return upcast(cxp);
-		}
-		break;
-	}	
 	}
 
 	return NULL;

@@ -1,5 +1,5 @@
 /************************************************************************
- * Copyright 2006-2020 Silicon Software GmbH, 2021-2022 Basler AG
+ * Copyright 2006-2020 Silicon Software GmbH, 2021-2025 Basler AG
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License (version 2) as
@@ -30,7 +30,7 @@ extern "C++" {
  * This is a well defined and portable alternative to multichar literals.
  *
  * @example
- * auto constexpr x = multichar<uint32_t>("TEST"); // x will be evaluated at compiletime to 0x54455354 (T=0x53, E=0x45, S=0x53)
+ * auto constexpr x = multichar<uint32_t>("TEST"); // x will be evaluated at compiletime to 0x54455354 (T=0x54, E=0x45, S=0x53)
  */
 template<typename T, size_t N>
 constexpr T multichar(const char(&str)[N], size_t pos = 0) {

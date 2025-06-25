@@ -1,5 +1,5 @@
 /************************************************************************
- * Copyright 2023-2024 Basler AG
+ * Copyright 2023-2025 Basler AG
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License (version 2) as
@@ -32,32 +32,34 @@ typedef struct me6_sgl_block {
     uint64_t data[7];
 } me6_sgl_block;
 
-/**
- * \brief Sets a single entry inside an SGL block for a PC to Device SGL.
- * \param sgl Pointer to the SGL block struct.
- * \param entry_idx The index of the entry to set. Valid values are 0 to 4.
- * \param page_group_address The value for the page group address. The address is expected
- *                           as a whole 64 bit address. Any required adjustments are performed
- *                           inside this function.
- * \param page_group_size The page group size, as specified in the SGL specification document.
- * \param is_last_sgl_entry Flag to indicate whether or not this is the last entry in the SGL.
- * \return STATUS_OK on success or an error code otherwise.
- */
-int men_me6sgl_dev2pc_set_block_entry(me6_sgl_block* sgl, uint8_t entry_idx, uint64_t page_group_address,
-                                      uint32_t page_group_size, bool is_last_sgl_entry);
+typedef struct men_me6sgl_block_field men_me6sgl_block_field;
 
-/**
- * \brief Sets a single entry inside an SGL block for a Device to PC SGL.
- * \param sgl Pointer to the SGL block struct.
- * \param entry_idx The index of the entry to set. Valid values are 0 to 4.
- * \param page_group_address The value for the page group address. The address is expected
- *                           as a whole 64 bit address. Any required adjustments are performed
- *                           inside this function.
- * \param page_group_size The page group size, as specified in the SGL specification document.
- * \return STATUS_OK on success or an error code otherwise.
- */
-int men_me6sgl_pc2dev_set_block_entry(me6_sgl_block* sgl, uint8_t entry_idx, uint64_t page_group_address,
-                                      uint32_t page_group_size);
+typedef struct men_me6sgl {
+    me6_sgl_block* blocks;
+    size_t num_blocks;
+    uint64_t first_block_bus_address;
+
+    uint16_t bits_in_last_transfer_size_field;
+
+    void (*get_entry_fields_with_values)(struct men_me6sgl* self, uint64_t page_group_address, uint32_t page_group_size,
+                          bool is_last_sgl_entry, men_me6sgl_block_field** out_fields, size_t* out_num_fields);
+
+    size_t (*fill_blocks)(struct men_me6sgl* self, size_t entry_count_offset, size_t batch_length, void* virt_address, bool is_last_batch);
+
+    void (*create_for_dummy_buffer)(struct men_me6sgl* self, void* dummy_page_address);
+
+    men_me6sgl_block_field* fields;
+    uint32_t num_fields;
+    uint32_t max_pci_transfer_size;
+    uint32_t start_bit_of_first_block_entry;
+
+} men_me6sgl;
+
+int men_me6sgl_init_dev2pc(men_me6sgl* sgl, me6_sgl_block* block_memory, size_t num_blocks,
+                           uint32_t max_pci_transfer_size);
+
+int men_me6sgl_init_pc2dev(men_me6sgl* sgl, me6_sgl_block* block_memory, size_t num_blocks,
+                           uint32_t max_pci_transfer_size);
 
 #ifdef __cplusplus
 } // extern "C"

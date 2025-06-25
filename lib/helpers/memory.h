@@ -1,5 +1,5 @@
 /************************************************************************
- * Copyright 2006-2020 Silicon Software GmbH, 2021-2024 Basler AG
+ * Copyright 2006-2020 Silicon Software GmbH, 2021-2025 Basler AG
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License (version 2) as
@@ -8,6 +8,10 @@
 
 #ifndef _LIB_HELPERS_MEMORY_H_
 #define _LIB_HELPERS_MEMORY_H_
+
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 #include <lib/os/types.h>
 
@@ -44,5 +48,11 @@ void free_nonpageable_cacheable_small(void * mem, uint32_t tag);
 
 void copy_mem(void * destination, const void * source, size_t length);
 void fill_mem(void * mem, size_t length, int fill_value);
+
+uint64_t get_bus_address(void* virtual_address);
+
+#ifdef __cplusplus
+} // extern "C"
+#endif
 
 #endif /* _LIB_HELPERS_MEMORY_H_ */

@@ -1,5 +1,5 @@
 /************************************************************************
- * Copyright 2006-2020 Silicon Software GmbH, 2021-2024 Basler AG
+ * Copyright 2006-2020 Silicon Software GmbH, 2021-2025 Basler AG
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License (version 2) as
@@ -8,6 +8,10 @@
 
 #ifndef MEN_LIB_HELPERS_DBG_H_
 #define MEN_LIB_HELPERS_DBG_H_
+
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 // Try to get rid of dynamic debug. To make this work, this file must be included 
 // before `linux/kconfig.h` is included, so probably before any kernel headers.
@@ -163,6 +167,10 @@ static inline void dbg_trace_nop(void) {}
     #define DBG_REG_WRITE(address, val)
     #define DBG_REG_READ(address, val)
     #define DBG_REG_IO(stmt) do {} while(0)
+#endif
+
+#ifdef __cplusplus
+}
 #endif
 
 #endif // Include Guard

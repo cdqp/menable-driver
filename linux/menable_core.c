@@ -1,5 +1,5 @@
 /************************************************************************
-* Copyright 2006-2020 Silicon Software GmbH, 2021-2024 Basler AG
+* Copyright 2006-2020 Silicon Software GmbH, 2021-2025 Basler AG
 *
 * This program is free software; you can redistribute it and/or modify
 * it under the terms of the GNU General Public License (version 2) as
@@ -344,15 +344,15 @@ static DEFINE_PCI_DEVICE_TABLE(menable_pci_table) = {
     /* Abacus 4G Base II */
     { PCI_DEVICE(PCI_VENDOR_SISO, PN_MICROENABLE5_ABACUS_4G_BASE_II),
       .driver_data = PN_MICROENABLE5_ABACUS_4G_BASE_II },
-    /* imaFlex CXP-12 Quad */
-    { PCI_DEVICE(PCI_VENDOR_SISO, PN_MICROENABLE6_IMAFLEX_CXP12_QUAD),
-      .driver_data = PN_MICROENABLE6_IMAFLEX_CXP12_QUAD },
     /* imaWorx CXP-12 Quad */
     { PCI_DEVICE(PCI_VENDOR_SISO, PN_MICROENABLE6_IMAWORX_CXP12_QUAD),
       .driver_data = PN_MICROENABLE6_IMAWORX_CXP12_QUAD },
-    /* Abacus 4TG */
-    { PCI_DEVICE(PCI_VENDOR_SISO, PN_MICROENABLE6_ABACUS_4TG),
-      .driver_data = PN_MICROENABLE6_ABACUS_4TG },
+    /* imaFlex CXP-12 Quad */
+    { PCI_DEVICE(PCI_VENDOR_SISO, PN_MICROENABLE6_IMAFLEX_CXP12_QUAD),
+      .driver_data = PN_MICROENABLE6_IMAFLEX_CXP12_QUAD },
+    /* imaFlex CXP-12 Penta */
+    { PCI_DEVICE(PCI_VENDOR_SISO, PN_MICROENABLE6_IMAFLEX_CXP12_PENTA),
+      .driver_data = PN_MICROENABLE6_IMAFLEX_CXP12_PENTA },
     /* CXP12-IC-1C */
     { PCI_DEVICE(PCI_VENDOR_SISO, PN_MICROENABLE6_CXP12_IC_1C),
       .driver_data = PN_MICROENABLE6_CXP12_IC_1C },
@@ -365,13 +365,13 @@ static DEFINE_PCI_DEVICE_TABLE(menable_pci_table) = {
     /* CXP12-LB-2C */
     { PCI_DEVICE(PCI_VENDOR_SISO, PN_MICROENABLE6_CXP12_LB_2C),
       .driver_data = PN_MICROENABLE6_CXP12_LB_2C },
+    /* Abacus 4TG */
+    { PCI_DEVICE(PCI_VENDOR_SISO, PN_MICROENABLE6_ABACUS_4TG),
+      .driver_data = PN_MICROENABLE6_ABACUS_4TG },
 #ifdef WITH_PROTOTYPE_FRAMEGRABBERS
     /* KCU116 */
     { PCI_DEVICE(PCI_VENDOR_SISO, PN_MICROENABLE6_IMPULSE_KCU116),
       .driver_data = PN_MICROENABLE6_IMPULSE_KCU116 },
-    /* Impulse CX 5A */    
-    { PCI_DEVICE(PCI_VENDOR_SISO, PN_MICROENABLE6_IMPULSE_CX5A),
-      .driver_data = PN_MICROENABLE6_IMPULSE_CX5A },
 #endif
     /* EOT */
     { 0 },

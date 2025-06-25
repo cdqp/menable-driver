@@ -1,5 +1,5 @@
 /************************************************************************
- * Copyright 2006-2020 Silicon Software GmbH, 2021-2022 Basler AG
+ * Copyright 2006-2020 Silicon Software GmbH, 2021-2025 Basler AG
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License (version 2) as
@@ -127,7 +127,8 @@ enum siso_board_type {
     PN_MICROENABLE6_IMPULSE_CX4A = 0xA67,              /**< Impulse CX4A */
     PN_MICROENABLE6_IMPULSE_CX4X = 0xA68,              /**< Impulse CX4X */
 
-    PN_MICROENABLE6_IMPULSE_CX5A = 0xA69,              /**< Impulse CX5A */
+    PN_MICROENABLE6_IMAFLEX_CXP12_PENTA = 0xA69,       /**< imaFlex CXP-12 Penta (was Impulse CX5A) */
+    PN_MICROENABLE6_IMPULSE_CX5A = PN_MICROENABLE6_IMAFLEX_CXP12_PENTA, /**< Impulse CX5A */
 
     PN_MICROENABLE6_IMPULSE_FB4X = 0xA6A,              /**< Impulse FB4X */
 
@@ -242,6 +243,7 @@ static inline const char* GetBoardName(int boardType) {
     case PN_MICROENABLE6_IMPULSE_KCU116: return "EVAL board KCU116";
     case PN_MICROENABLE6_IMAWORX_CXP12_QUAD: return "imaWorx CXP-12 Quad";
     case PN_MICROENABLE6_IMAFLEX_CXP12_QUAD: return "imaFlex CXP-12 Quad";
+    case PN_MICROENABLE6_IMAFLEX_CXP12_PENTA: return "imaFlex CXP-12 Penta";
     case PN_MICROENABLE6_ABACUS_4TG: return "microEnable 6 Abacus 4 TGE";
     case PN_MICROENABLE6_CXP12_IC_1C: return "CXP12 Interface Card 1C";
     case PN_MICROENABLE6_CXP12_IC_2C: return "CXP12 Interface Card 2C";
@@ -252,7 +254,6 @@ static inline const char* GetBoardName(int boardType) {
     case PN_MICROENABLE6_IMPULSE_CX2S: return "Impulse CX2S";
     case PN_MICROENABLE6_IMPULSE_CX4A: return "Impulse CX4A";
     case PN_MICROENABLE6_IMPULSE_CX4X: return "Impulse CX4X";
-    case PN_MICROENABLE6_IMPULSE_CX5A: return "Impulse CX5A";
     case PN_MICROENABLE6_IMPULSE_FB4X: return "Impulse FB4X";
     case PN_MICROENABLE6_LIGHTBRIDGE_FB2A: return "LightBridge FB2A";
     case PN_MICROENABLE6_IMPULSE_PROTOTYPE: return "Impulse Prototype";
@@ -341,6 +342,7 @@ static inline bool SisoBoardIsMe6(const int boardType)
     switch (boardType) {
     case PN_MICROENABLE6_IMAWORX_CXP12_QUAD:
     case PN_MICROENABLE6_IMAFLEX_CXP12_QUAD:
+    case PN_MICROENABLE6_IMAFLEX_CXP12_PENTA:
     case PN_MICROENABLE6_IMPULSE_KCU116:
     case PN_MICROENABLE6_ABACUS_4TG:
     case PN_MICROENABLE6_CXP12_IC_1C:
@@ -351,7 +353,6 @@ static inline bool SisoBoardIsMe6(const int boardType)
     case PN_MICROENABLE6_IMPULSE_CX2S:
     case PN_MICROENABLE6_IMPULSE_CX4A:
     case PN_MICROENABLE6_IMPULSE_CX4X:
-    case PN_MICROENABLE6_IMPULSE_CX5A:
     case PN_MICROENABLE6_IMPULSE_FB4X:
     case PN_MICROENABLE6_IMPULSE_PROTOTYPE:
         return true;
@@ -422,6 +423,7 @@ static inline bool SisoBoardIsImpulse(const int boardType)
     switch (boardType) {
     case PN_MICROENABLE6_IMAWORX_CXP12_QUAD:
     case PN_MICROENABLE6_IMAFLEX_CXP12_QUAD:
+    case PN_MICROENABLE6_IMAFLEX_CXP12_PENTA:
     case PN_MICROENABLE6_IMPULSE_KCU116:
     case PN_MICROENABLE6_CXP12_IC_1C:
     case PN_MICROENABLE6_CXP12_IC_2C:
@@ -430,7 +432,6 @@ static inline bool SisoBoardIsImpulse(const int boardType)
     case PN_MICROENABLE6_IMPULSE_CX2S:
     case PN_MICROENABLE6_IMPULSE_CX4A:
     case PN_MICROENABLE6_IMPULSE_CX4X:
-    case PN_MICROENABLE6_IMPULSE_CX5A:
     case PN_MICROENABLE6_IMPULSE_FB4X:
     case PN_MICROENABLE6_IMPULSE_PROTOTYPE:
         return true;
@@ -581,6 +582,7 @@ static inline bool SisoBoardIsCXP(const int boardType)
         case PN_MICROENABLE5_MARATHON_VCX_QP:
         case PN_MICROENABLE6_IMAWORX_CXP12_QUAD:
         case PN_MICROENABLE6_IMAFLEX_CXP12_QUAD:
+        case PN_MICROENABLE6_IMAFLEX_CXP12_PENTA:
         case PN_MICROENABLE6_CXP12_IC_1C:
         case PN_MICROENABLE6_CXP12_IC_2C:
         case PN_MICROENABLE6_CXP12_IC_4C:
@@ -589,7 +591,6 @@ static inline bool SisoBoardIsCXP(const int boardType)
         case PN_MICROENABLE6_IMPULSE_CX2S:
         case PN_MICROENABLE6_IMPULSE_CX4A:
         case PN_MICROENABLE6_IMPULSE_CX4X:
-        case PN_MICROENABLE6_IMPULSE_CX5A:
         case PN_MICROENABLE6_IMPULSE_PROTOTYPE:
         case PN_MICROENABLE6_CXP12_LB_2C:
             return true;
@@ -606,6 +607,7 @@ static inline bool SisoBoardIsCXP12(const int boardType)
     switch (boardType) {
         case PN_MICROENABLE6_IMAWORX_CXP12_QUAD:
         case PN_MICROENABLE6_IMAFLEX_CXP12_QUAD:
+        case PN_MICROENABLE6_IMAFLEX_CXP12_PENTA:
         case PN_MICROENABLE6_CXP12_IC_1C:
         case PN_MICROENABLE6_CXP12_IC_2C:
         case PN_MICROENABLE6_CXP12_IC_4C:
@@ -614,7 +616,6 @@ static inline bool SisoBoardIsCXP12(const int boardType)
         case PN_MICROENABLE6_IMPULSE_CX2S:
         case PN_MICROENABLE6_IMPULSE_CX4A:
         case PN_MICROENABLE6_IMPULSE_CX4X:
-        case PN_MICROENABLE6_IMPULSE_CX5A:
         case PN_MICROENABLE6_IMPULSE_PROTOTYPE:
         case PN_MICROENABLE6_CXP12_LB_2C:
             return true;
@@ -661,9 +662,9 @@ static inline bool SisoBoardIsV(const int boardType)
     case PN_MICROENABLE5_MARATHON_DeepVCL:
     case PN_MICROENABLE5_MARATHON_VCX_QP:
     case PN_MICROENABLE5_MARATHON_VF2_DP:
-    case PN_MICROENABLE6_IMPULSE_KCU116:
     case PN_MICROENABLE6_IMAFLEX_CXP12_QUAD:
-    case PN_MICROENABLE6_IMPULSE_CX5A:
+    case PN_MICROENABLE6_IMAFLEX_CXP12_PENTA:
+    case PN_MICROENABLE6_IMPULSE_KCU116:
     case PN_MICROENABLE6_IMPULSE_PROTOTYPE:
         return true;
     default:
@@ -729,7 +730,7 @@ static inline int SisoBoardNumberOfPhysicalPorts(const int boardType)
     case PN_MICROENABLE6_IMPULSE_CX4X:
     case PN_MICROENABLE6_IMPULSE_FB4X:
         return 4;
-    case PN_MICROENABLE6_IMPULSE_CX5A:
+    case PN_MICROENABLE6_IMAFLEX_CXP12_PENTA:
     case PN_MICROENABLE6_IMPULSE_PROTOTYPE:
         return 5;
     default:
@@ -787,6 +788,7 @@ static inline int SisoBoardNumberOfPCIeLanes(const int boardType)
     case PN_MICROENABLE6_IMPULSE_KCU116:
     case PN_MICROENABLE6_IMAWORX_CXP12_QUAD:
     case PN_MICROENABLE6_IMAFLEX_CXP12_QUAD:
+    case PN_MICROENABLE6_IMAFLEX_CXP12_PENTA:
     case PN_MICROENABLE6_CXP12_IC_2C:
     case PN_MICROENABLE6_CXP12_IC_4C:
     case PN_MICROENABLE6_ABACUS_4TG:
@@ -794,7 +796,6 @@ static inline int SisoBoardNumberOfPCIeLanes(const int boardType)
     case PN_MICROENABLE6_IMPULSE_CX2S:
     case PN_MICROENABLE6_IMPULSE_CX4A:
     case PN_MICROENABLE6_IMPULSE_CX4X:
-    case PN_MICROENABLE6_IMPULSE_CX5A:
     case PN_MICROENABLE6_IMPULSE_FB4X:
     case PN_MICROENABLE6_IMPULSE_PROTOTYPE:
         return 8;
@@ -848,16 +849,16 @@ static inline int SisoBoardPCIeGeneration(const int boardType)
     case PN_MICROENABLE6_IMPULSE_KCU116:
     case PN_MICROENABLE6_IMAWORX_CXP12_QUAD:
     case PN_MICROENABLE6_IMAFLEX_CXP12_QUAD:
-    case PN_MICROENABLE6_ABACUS_4TG:
+    case PN_MICROENABLE6_IMAFLEX_CXP12_PENTA:
     case PN_MICROENABLE6_CXP12_IC_1C:
     case PN_MICROENABLE6_CXP12_IC_2C:
     case PN_MICROENABLE6_CXP12_IC_4C:
+    case PN_MICROENABLE6_ABACUS_4TG:
     case PN_MICROENABLE6_ELEGANCE_ECO:
     case PN_MICROENABLE6_IMPULSE_CX1S:
     case PN_MICROENABLE6_IMPULSE_CX2S:
     case PN_MICROENABLE6_IMPULSE_CX4A:
     case PN_MICROENABLE6_IMPULSE_CX4X:
-    case PN_MICROENABLE6_IMPULSE_CX5A:
     case PN_MICROENABLE6_IMPULSE_FB4X:
     case PN_MICROENABLE6_LIGHTBRIDGE_FB2A:
     case PN_MICROENABLE6_IMPULSE_PROTOTYPE:

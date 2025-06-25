@@ -25,6 +25,10 @@ error messages referring to driver signing. You can safely ignore those
 error messages if the UEFI Secure Boot feature is disabled in your mainboard
 settings.
 
+Version 5.5.0
+-------------
+- Support for new frame grabber iF-CXP12-P
+
 Version 5.4.0
 -------------
 - Driver can be compiled for Kernel > 6.3.0

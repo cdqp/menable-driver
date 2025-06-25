@@ -3,7 +3,7 @@
 COMPATIBILITY NOTICE FOR LINUX KERNELS 4.5 OR NEWER:
 The Linux Kernel starting with version 4.5 allows a stricter management of
 PCI resources via setting CONFIG_IO_STRICT_DEVMEM.
-The current Silicon Software Runtime will not work when this setting is
+The current Frame Grabber SDK will not work when this setting is
 enabled. This is a known issue on some Linux distributions. To work-around
 this issue, please boot the linux kernel with option iomem=relaxed, or
 recompile the kernel with CONFIG_IO_STRICT_DEVMEM=n.
@@ -11,7 +11,7 @@ recompile the kernel with CONFIG_IO_STRICT_DEVMEM=n.
 COMPATIBILITY NOTICE FOR UEFI SECURE BOOT:
 If you install Linux on an UEFI machine using the Secure Boot option enabled
 in the UEFI settings, drivers might need to be signed. Currently, the
-Silicon Software Linux driver does not support signing during the build
+Linux driver for Basler frame grabbers does not support signing during the build
 process. Signing requires for the user to create a certificate, sign the
 driver using the certificate and install the certificate into the UEFI
 certificate store. There are several how-tos to be found online, if you
@@ -28,25 +28,7 @@ The Linux driver for microEnable 4/5/6 (from now on called "driver")
 supports all hardware types of all device families starting with the
 microEnable III.
 
-As of July 2021 (driver version 5.0.0) these are:
-* microEnable IV BASE x1
-* microEnable IV FULL x1
-* microEnable IV FULL x4
-* microEnable IV GigE x4
-* microEnable IV AS1-CL
-* microEnable IV AD1-CL
-* microEnable IV AD4-CL
-* microEnable IV VD1-CL
-* microEnable IV VD4-CL
-* microEnable IV AQ4-GE
-* microEnable IV VQ4-GE
-* microEnable 5 AD8-CL
-* microEnable 5 VD8-CL
-* microEnable 5 AD8-CLHS
-* microEnable 5 AQ8-CXP6B
-* microEnable 5 VQ8-CXP6B
-* microEnable 5 AQ8-CXP6D
-* microEnable 5 VQ8-CXP6D
+As of February 2025 (driver version 5.5.0) these are:
 * mE5 marathon ACL
 * mE5 marathon VCL
 * mE5 marathon VCLx
@@ -56,11 +38,15 @@ As of July 2021 (driver version 5.0.0) these are:
 * mE5 marathon VCX QP
 * mE5 marathon AF2
 * mE5 marathon VF2
-* mE6 abacus 4TG
+* mE5 abacus 4G/Base/Base II
 * mE6 CXP12 IC 1C
 * mE6 CXP12 IC 2C
 * mE6 CXP12 IC 4C
+* mE6 CXP12 LB 2C
 * mE6 imaWorx CXP12 Quad
+* mE6 imaFlex CXP12 Quad
+* mE6 imaFlex CXP12 Penta
+* mE6 abacus 4TG
 * mE6 elegance ECO
 
 All commands in this documentation should be run as an ordinary user.
@@ -87,25 +73,15 @@ terminal and entering the commands
 	sudo apt-get update
 	sudo apt-get dist-upgrade
 
-As of version 4.1.8 of the driver, support for Red Hat Enterprise Linux 7.2
-was added.
-
-To be able to compile and install the driver, please make sure you select the
-Development Tools package when installing Red Hat Enterprise Linux 7.2.
-
-Please make sure that the system is up-to-date.
-If the kernel is updated at a later point, you will have to re-build and
-install the driver again.
-
 
 = Unpacking the driver sources =
 
 To unpack the driver sources either double-click the file 
-menable_linuxdrv_src_5.0.0.tar.bz2 and select "Extract" in the Archive
+menable_linuxdrv_src_5.5.0.tar.bz2 and select "Extract" in the Archive
 Manager, or open a terminal, go to the directory where you want to unpack the
 sources and enter the command
 
-	tar xzvf menable_linuxdrv_src_5.0.0.tar.bz2
+	tar xzvf menable_linuxdrv_src_5.5.0.tar.bz2
 
 
 = Building and installing the driver =

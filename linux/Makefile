@@ -31,6 +31,12 @@ ifeq ($(DRIVER_DIR),)
 	DRIVER_DIR := $(SOURCE_DIR)/..
 endif
 
+# If no RUNTIME_DIR was specified, define it to the parent directory,
+# to allow to use this variable for copying external headers.
+ifeq ($(RUNTIME_DIR),)
+	RUNTIME_DIR := $(SOURCE_DIR)/../../Runtime
+endif
+
 # If no SHARED_DIR was specified, define it to the parent directory,
 # to allow to use this variable for copying external headers.
 ifeq ($(SHARED_DIR),)
@@ -132,8 +138,8 @@ men_ioctl_codes.h: $(wildcard $(DRIVER_DIR)/men_ioctl_codes.h)
 sisoboards.h: $(wildcard $(SHARED_DIR)/Common/SisoBoards/include/sisoboards.h)
 	cp $(SHARED_DIR)/Common/SisoBoards/include/sisoboards.h .
 
-multichar.h: $(wildcard $(SHARED_DIR)/Common/CommonFunctions/multichar.h)
-	cp $(SHARED_DIR)/Common/CommonFunctions/multichar.h .
+multichar.h: $(wildcard $(RUNTIME_DIR)/Common/utils/include/multichar.h)
+	cp $(RUNTIME_DIR)/Common/utils/include/multichar.h .
 
 clean:
 	$(MAKE) -C $(BUILD_DIR) M=$(SOURCE_DIR) clean

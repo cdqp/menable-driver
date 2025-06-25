@@ -1,5 +1,5 @@
 /************************************************************************
-* Copyright 2006-2020 Silicon Software GmbH, 2021-2024 Basler AG
+* Copyright 2006-2020 Silicon Software GmbH, 2021-2025 Basler AG
 *
 * This program is free software; you can redistribute it and/or modify
 * it under the terms of the GNU General Public License (version 2) as
@@ -18,7 +18,7 @@
 #define DRIVER_NAME "menable"
 #define DRIVER_DESCRIPTION "microEnable 5/6 driver"
 #define DRIVER_VENDOR "Basler AG"
-#define DRIVER_VERSION "5.4.0"
+#define DRIVER_VERSION "5.5.0"
 
 //#define ENABLE_DEBUG_MSG 1
 //#define DEBUG_SGL 1

@@ -1,5 +1,5 @@
 /************************************************************************
-* Copyright 2006-2020 Silicon Software GmbH, 2021-2024 Basler AG
+* Copyright 2006-2020 Silicon Software GmbH, 2021-2025 Basler AG
 *
 * This program is free software; you can redistribute it and/or modify
 * it under the terms of the GNU General Public License (version 2) as
@@ -541,8 +541,18 @@ men_move_hot(struct menable_dmachan *dma_chan, const menable_timespec_t *ts)
         dma_chan->latest_frame_number++;
 
         sb->timestamp = *ts;
-        dma_sync_sg_for_cpu(&dma_chan->parent->pdev->dev, sb->sg, sb->num_sg_entries,
-            dma_chan->direction);
+        struct device *dev =  &dma_chan->parent->pdev->dev;
+        if(dev != NULL && sb != NULL && sb->sg != NULL){
+            dma_sync_sg_for_cpu(dev, sb->sg, sb->num_sg_entries, dma_chan->direction);
+        }
+        else{
+            if(dev == NULL)
+                dev_err(&dma_chan->parent->dev, "[ERROR][ACQ] device prointer is invalid.\n");
+            if(sb == NULL)
+                dev_err(&dma_chan->parent->dev, "[ERROR][ACQ] subbuffer sb prointer is invalid.\n");
+            else if(sb->sg == NULL)
+                dev_err(&dma_chan->parent->dev, "[ERROR][ACQ] SGL prointer is invalid.\n");
+        }
     } else {
         WARN_ON(dma_chan->hot_count == 0);
         dev_err(&dma_chan->parent->dev, "[ERROR][ACQ] Received interrupt but there is no buffer in hot queue.\n");

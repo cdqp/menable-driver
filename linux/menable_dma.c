@@ -1,5 +1,5 @@
 /************************************************************************
-* Copyright 2006-2020 Silicon Software GmbH, 2021-2024 Basler AG
+* Copyright 2006-2020 Silicon Software GmbH, 2021-2025 Basler AG
 *
 * This program is free software; you can redistribute it and/or modify
 * it under the terms of the GNU General Public License (version 2) as
@@ -420,15 +420,15 @@ men_add_dmas(struct siso_menable *men)
     unsigned int i;
     struct menable_dmachan **old, **nc;
     unsigned long flags;
-    unsigned int count = 0;
-    unsigned int oldsum = 0;
-    unsigned int oldcnt[MAX_FPGAS];
-    unsigned int newcnt[MAX_FPGAS];
+    unsigned int countOFNewRequestedDMA = 0;
+    unsigned int nrOfAllExistingDMA = 0;
+    unsigned int nrOfExistingDMAPerFPGA[MAX_FPGAS];
+    unsigned int countOfNewRequestedDMAPerFPGA[MAX_FPGAS];
     unsigned int newindex;
 
     for (i = 0; i < MAX_FPGAS; i++) {
-        oldsum += men->dmacnt[i];
-        oldcnt[i] = men->dmacnt[i];
+        nrOfAllExistingDMA += men->dmacnt[i];
+        nrOfExistingDMAPerFPGA[i] = men->dmacnt[i];
     }
 
     /* For pre me6 boards, the DMA count may only change if that FPGA previously had none. */
@@ -436,54 +436,56 @@ men_add_dmas(struct siso_menable *men)
     
     for (i = 0; i < men->active_fpgas; i++) {
         unsigned int tmp = men->query_dma(men, i);
-        if (warnOnChange && (tmp > oldcnt[i]) && (oldcnt[i] != 0)) {
-            dev_warn(&men->dev, "DMA count changed from %u to %u\n", oldcnt[i], tmp);
-            WARN_ON((tmp > oldcnt[i]) && (oldcnt[i] != 0));
+        if (warnOnChange && (tmp > nrOfExistingDMAPerFPGA[i]) && (nrOfExistingDMAPerFPGA[i] != 0)) {
+            dev_warn(&men->dev, "menable DMA count changed from %u to %u\n", nrOfExistingDMAPerFPGA[i], tmp);
+            WARN_ON((tmp > nrOfExistingDMAPerFPGA[i]) && (nrOfExistingDMAPerFPGA[i] != 0));
         }
-        count += tmp;
-        newcnt[i] = tmp;
+        countOFNewRequestedDMA += tmp;
+        countOfNewRequestedDMAPerFPGA[i] = tmp;
     }
 
     /* For pre me6 boards, the DMA count is not supposed to decrease. */
-    WARN_ON(warnOnChange && count < oldsum);
-    if (unlikely(count <= oldsum))
+    WARN_ON(warnOnChange && countOFNewRequestedDMA < nrOfAllExistingDMA);
+    if (unlikely(countOFNewRequestedDMA <= nrOfAllExistingDMA))
         return 0;
 
-    nc = kcalloc(count, sizeof(*nc), GFP_KERNEL);
+    nc = kcalloc(countOFNewRequestedDMA, sizeof(*nc), GFP_KERNEL);
 
     if (unlikely(nc == NULL))
         return -ENOMEM;
 
-    newindex = oldsum;
+    newindex = nrOfAllExistingDMA;
     for (i = 0; i < men->active_fpgas; i++) {
         unsigned int j;
 
-        if (oldcnt[i] == newcnt[i])
+        if (nrOfExistingDMAPerFPGA[i] == countOfNewRequestedDMAPerFPGA[i])
             continue;
 
-        /* allocate control structs for all new channels */
-        for (j = 0; j < newcnt[i]; j++) {
-            nc[newindex] = men_create_dmachan(men, newindex, i);
+		if ((countOfNewRequestedDMAPerFPGA[i] - nrOfExistingDMAPerFPGA[i]) > 0) {
+			/* allocate control structs for all new channels */
+			for (j = 0; j < (countOfNewRequestedDMAPerFPGA[i] - nrOfExistingDMAPerFPGA[i]); j++) {
+				nc[newindex] = men_create_dmachan(men, newindex, i);
 
-            if (unlikely(IS_ERR(nc[newindex]))) {
-                int ret = PTR_ERR(nc[newindex]);
-                unsigned int j;
+				if (unlikely(IS_ERR(nc[newindex]))) {
+					int ret = PTR_ERR(nc[newindex]);
+					unsigned int j;
 
-                for (j = oldsum; j < newindex; j++)
-                    men_dma_remove(nc[j]);
+					for (j = nrOfAllExistingDMA; j < newindex; j++)
+						men_dma_remove(nc[j]);
 
-                kfree(nc);
-                return ret;
-            }
-            newindex++;
-        }
+					kfree(nc);
+					return ret;
+				}
+				newindex++;
+			}
+		}
     }
 
     spin_lock_bh(&men->buffer_heads_lock);
     spin_lock_irqsave(&men->boardlock, flags);
     /* copy old array contents to new one */
     old = men->dmachannels;
-    for (i = 0; i < oldsum; i++)
+    for (i = 0; i < nrOfAllExistingDMA; i++)
         nc[i] = old[i];
 
     men->dmachannels = nc;

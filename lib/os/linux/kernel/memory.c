@@ -1,5 +1,5 @@
 /************************************************************************
-* Copyright 2006-2020 Silicon Software GmbH, 2021-2024 Basler AG
+* Copyright 2006-2020 Silicon Software GmbH, 2021-2025 Basler AG
 *
 * This program is free software; you can redistribute it and/or modify
 * it under the terms of the GNU General Public License (version 2) as
@@ -9,6 +9,7 @@
 #include <linux/slab.h>
 #include <linux/vmalloc.h>
 #include <linux/string.h>
+#include <asm/io.h>
 
 #include <lib/helpers/memory.h>
 
@@ -58,4 +59,14 @@ void copy_mem(void * destination, const void * source, size_t length) {
 
 void fill_mem(void * mem, size_t length, int fill_value) {
     memset(mem, fill_value, length);
+}
+
+uint64_t get_bus_address(void* virtual_address) {
+    /* TODO: This implementation should be changed to use the DMA api since it won't
+     *       work with IOMMUs or architectures, where DMA addresses don't map 1:1 to
+     *       physical addresses.
+     * 
+     *       This might require a DMA mapping abstraction in the driver library.
+     */
+    return virt_to_phys(virtual_address);
 }
