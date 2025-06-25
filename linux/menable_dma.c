@@ -375,7 +375,7 @@ men_create_dmachan(struct siso_menable *parent, const unsigned char index, const
     INIT_LIST_HEAD(&res->grabbed_list);
     INIT_LIST_HEAD(&res->hot_list);
     INIT_LIST_HEAD(&res->wait_list);
-    hrtimer_init(&res->timer, CLOCK_MONOTONIC, HRTIMER_MODE_REL);
+    hrtimer_setup(&res->timer, men_dma_timeout, CLOCK_MONOTONIC, HRTIMER_MODE_REL);
     res->timer.function = men_dma_timeout;
     INIT_WORK(&res->dwork, men_dma_done_work);
 
